@@ -1,0 +1,87 @@
+cmake_minimum_required(VERSION 3.8)
+project(tensorrt_inferencer VERSION 1.0.0)
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+# find dependencies
+find_package(ament_cmake REQUIRED)
+find_package(CUDAToolkit REQUIRED)
+find_package(OpenCV REQUIRED)
+
+# Define the library target
+add_library(tensorrt_inferencer STATIC
+  src/tensorrt_inferencer.cpp)
+
+# Specify include directories for the target
+target_include_directories(tensorrt_inferencer
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  PRIVATE
+    ${TENSORRT_INCLUDE_DIRS}
+    ${CUDAToolkit_INCLUDE_DIRS}
+    ${OpenCV_INCLUDE_DIRS})
+
+# Link OpenCV libraries to the target
+target_link_libraries(tensorrt_inferencer
+  PRIVATE
+    ${TENSORRT_LIBRARY}
+    CUDA::cudart
+    ${OpenCV_LIBS})
+
+target_compile_features(tensorrt_inferencer PUBLIC cxx_std_17)
+
+# Optionally install the library
+install(TARGETS tensorrt_inferencer
+  EXPORT export_${PROJECT_NAME}
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+  RUNTIME DESTINATION bin
+  INCLUDES DESTINATION include
+)
+
+# Install header files
+install(DIRECTORY include/
+  DESTINATION include
+  FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
+
+# Export targets and dependencies
+ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
+ament_export_dependencies(OpenCV CUDAToolkit)
+
+# Export include directories for downstream packages
+ament_export_include_directories(include)
+
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  # the following line skips the linter which checks for copyrights
+  # comment the line when a copyright and license is added to all source files
+  set(ament_cmake_copyright_FOUND TRUE)
+  # the following line skips cpplint (only works in a git repo)
+  # comment the line when this package is in a git repo and when
+  # a copyright and license is added to all source files
+  set(ament_cmake_cpplint_FOUND TRUE)
+  ament_lint_auto_find_test_dependencies()
+
+  find_package(ament_cmake_gtest REQUIRED)
+
+  ament_add_gtest(test_tensorrt_inferencer
+    test/test_tensorrt_inferencer.cpp)
+
+  target_include_directories(test_tensorrt_inferencer PRIVATE
+    ${TENSORRT_INCLUDE_DIR}
+    ${CUDAToolkit_INCLUDE_DIRS}
+    ${OpenCV_INCLUDE_DIRS})
+
+  target_link_libraries(test_tensorrt_inferencer
+    tensorrt_inferencer
+    ${OpenCV_LIBS}
+    ${TENSORRT_LIBRARY}
+    CUDA::cudart
+    gtest_main)
+
+endif()
+
+ament_package()
