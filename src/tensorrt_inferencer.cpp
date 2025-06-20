@@ -9,15 +9,15 @@
 
 
 // TensorRT Logger
-void Logger::log(Severity severity, const char* msg) noexcept
+void Logger::log(Severity severity, const char * msg) noexcept
 {
   if (severity <= Severity::kWARNING) {
     std::cerr << msg << std::endl;
   }
 }
 
-TensorRTInferencer::TensorRTInferencer(const std::string & engine_path,
-  int height, int width, int classes)
+TensorRTInferencer::TensorRTInferencer(
+  const std::string & engine_path, int height, int width, int classes)
 : input_height_(height), input_width_(width), num_classes_(classes), current_stream_(0)
 {
   Logger logger;
@@ -42,8 +42,8 @@ TensorRTInferencer::TensorRTInferencer(const std::string & engine_path,
   }
 
   // Allocate pinned memory for faster CPU-GPU transfers
-  cudaMallocHost((void**)&pinned_input_, input_size_);
-  cudaMallocHost((void**)&pinned_output_, output_size_);
+  cudaMallocHost((void **)&pinned_input_, input_size_);
+  cudaMallocHost((void **)&pinned_output_, output_size_);
 
   // Allocate GPU memory
   cudaMalloc(&gpu_input_, input_size_);
@@ -79,14 +79,14 @@ std::vector<uint8_t> TensorRTInferencer::load_engine_file(const std::string & en
   file.seekg(0, std::ios::beg);
 
   std::vector<uint8_t> buffer(size);
-  file.read(reinterpret_cast<char*>(buffer.data()), size);
+  file.read(reinterpret_cast<char *>(buffer.data()), size);
   return buffer;
 }
 
 void TensorRTInferencer::find_tensor_names()
 {
   for (int i = 0; i < engine_->getNbIOTensors(); ++i) {
-    const char* tensor_name = engine_->getIOTensorName(i);
+    const char * tensor_name = engine_->getIOTensorName(i);
     nvinfer1::TensorIOMode mode = engine_->getTensorIOMode(tensor_name);
 
     if (mode == nvinfer1::TensorIOMode::kINPUT) {
@@ -109,7 +109,7 @@ void TensorRTInferencer::warmup()
   std::cout << "Engine warmed up" << std::endl;
 }
 
-std::vector<float> TensorRTInferencer::infer(const cv::Mat& image)
+std::vector<float> TensorRTInferencer::infer(const cv::Mat & image)
 {
   cudaStream_t stream = streams_[current_stream_];
   current_stream_ = (current_stream_ + 1) % NUM_STREAMS;
@@ -141,7 +141,7 @@ void TensorRTInferencer::preprocess_image_optimized(const cv::Mat & image, float
   cv::resize(image, img_resized, cv::Size(input_width_, input_height_));
 
   // Convert to float and normalize in one step
-  img_resized.convertTo(img_resized, CV_32FC3, 1.0/255.0);
+  img_resized.convertTo(img_resized, CV_32FC3, 1.0 / 255.0);
 
   // Split channels
   std::vector<cv::Mat> channels(3);

@@ -21,7 +21,7 @@ const std::vector<double> stddev = {0.229, 0.224, 0.225};
 class Logger : public nvinfer1::ILogger
 {
 public:
-  void log(Severity severity, const char* msg) noexcept override;
+  void log(Severity severity, const char * msg) noexcept override;
 };
 
 // Optimized inference class with streaming
@@ -29,15 +29,17 @@ class TensorRTInferencer
 {
 public:
   TensorRTInferencer() = delete;
-  explicit TensorRTInferencer(const std::string & engine_path, int height,
-    int width, int classes);
+  explicit TensorRTInferencer(
+    const std::string & engine_path, int height, int width, int classes);
   ~TensorRTInferencer();
 
   // Disable copy and move semantics
-  TensorRTInferencer(const TensorRTInferencer&) = delete;
-  TensorRTInferencer& operator=(const TensorRTInferencer&) = delete;
-  TensorRTInferencer(TensorRTInferencer&&) = delete;
-  TensorRTInferencer& operator=(TensorRTInferencer&&) = delete;
+  TensorRTInferencer(const TensorRTInferencer &) = delete;
+  TensorRTInferencer & operator=(const TensorRTInferencer &) = delete;
+  TensorRTInferencer(TensorRTInferencer &&) = delete;
+  TensorRTInferencer & operator=(TensorRTInferencer &&) = delete;
+
+  std::vector<float> infer(const cv::Mat & image);
 
 private:
   std::unique_ptr<nvinfer1::IRuntime> runtime_;
@@ -68,6 +70,5 @@ private:
   void find_tensor_names();
   std::vector<uint8_t> load_engine_file(const std::string & engine_path);
   void warmup();
-  std::vector<float> infer(const cv::Mat & image);
   void preprocess_image_optimized(const cv::Mat & image, float * output);
 };

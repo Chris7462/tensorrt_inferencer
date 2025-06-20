@@ -10,6 +10,29 @@ find_package(ament_cmake REQUIRED)
 find_package(CUDAToolkit REQUIRED)
 find_package(OpenCV REQUIRED)
 
+# Find TensorRT
+set(TENSORRT_ROOT /usr/local/tensorrt)
+find_path(TENSORRT_INCLUDE_DIR NvInfer.h
+  HINTS ${TENSORRT_ROOT} ${CUDA_TOOLKIT_ROOT_DIR}
+  PATH_SUFFIXES include)
+
+find_library(TENSORRT_LIBRARY nvinfer
+  HINTS ${TENSORRT_ROOT} ${TENSORRT_BUILD} ${CUDA_TOOLKIT_ROOT_DIR}
+  PATH_SUFFIXES lib lib64 lib/x64)
+
+find_library(TENSORRT_ONNX_PARSER_LIBRARY nvonnxparser
+  HINTS ${TENSORRT_ROOT} ${TENSORRT_BUILD} ${CUDA_TOOLKIT_ROOT_DIR}
+  PATH_SUFFIXES lib lib64 lib/x64)
+
+find_library(TENSORRT_PLUGIN_LIBRARY nvinfer_plugin
+  HINTS ${TENSORRT_ROOT} ${TENSORRT_BUILD} ${CUDA_TOOLKIT_ROOT_DIR}
+  PATH_SUFFIXES lib lib64 lib/x64)
+
+# Check if TensorRT was found
+if(NOT TENSORRT_INCLUDE_DIR OR NOT TENSORRT_LIBRARY)
+  message(FATAL_ERROR "TensorRT not found. Please set TENSORRT_ROOT to the TensorRT installation directory.")
+endif()
+
 # Define the library target
 add_library(tensorrt_inferencer STATIC
   src/tensorrt_inferencer.cpp)
@@ -21,14 +44,15 @@ target_include_directories(tensorrt_inferencer
     $<INSTALL_INTERFACE:include>
   PRIVATE
     ${TENSORRT_INCLUDE_DIRS}
-    ${CUDAToolkit_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS})
+    #${CUDAToolkit_INCLUDE_DIRS}  # Not needed as CUDAToolkit is linked via CUDA::cudart for Modern CMake
 
 # Link OpenCV libraries to the target
 target_link_libraries(tensorrt_inferencer
   PRIVATE
     ${TENSORRT_LIBRARY}
-    CUDA::cudart
+    ${TENSORRT_PLUGIN_LIBRARY}
+    CUDA::cudart  # This automatically provides CUDA includes
     ${OpenCV_LIBS})
 
 target_compile_features(tensorrt_inferencer PUBLIC cxx_std_17)
@@ -72,13 +96,13 @@ if(BUILD_TESTING)
 
   target_include_directories(test_tensorrt_inferencer PRIVATE
     ${TENSORRT_INCLUDE_DIR}
-    ${CUDAToolkit_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS})
 
   target_link_libraries(test_tensorrt_inferencer
     tensorrt_inferencer
     ${OpenCV_LIBS}
     ${TENSORRT_LIBRARY}
+    ${TENSORRT_PLUGIN_LIBRARY}
     CUDA::cudart
     gtest_main)
 
