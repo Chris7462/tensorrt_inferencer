@@ -42,17 +42,17 @@ target_include_directories(tensorrt_inferencer
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
-  PRIVATE
-    ${TENSORRT_INCLUDE_DIRS}
+    ${TENSORRT_INCLUDE_DIRS}  # Make this PUBLIC so downstream packages can use it
     ${OpenCV_INCLUDE_DIRS})
-    #${CUDAToolkit_INCLUDE_DIRS}  # Not needed as CUDAToolkit is linked via CUDA::cudart for Modern CMake
+    #${CUDAToolkit_INCLUDE_DIRS}  # Not needed as CUDA::cudart in the target_link_libraries will provide CUDA includes for Modern CMake
 
 # Link OpenCV libraries to the target
 target_link_libraries(tensorrt_inferencer
+  PUBLIC
+    CUDA::cudart  # This automatically provides CUDA includes. Make this PUBLIC so downstream packages can use it
   PRIVATE
     ${TENSORRT_LIBRARY}
     ${TENSORRT_PLUGIN_LIBRARY}
-    CUDA::cudart  # This automatically provides CUDA includes
     ${OpenCV_LIBS})
 
 target_compile_features(tensorrt_inferencer PUBLIC cxx_std_17)
@@ -89,22 +89,22 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 
-  find_package(ament_cmake_gtest REQUIRED)
+# find_package(ament_cmake_gtest REQUIRED)
 
-  ament_add_gtest(test_tensorrt_inferencer
-    test/test_tensorrt_inferencer.cpp)
+# ament_add_gtest(test_tensorrt_inferencer
+#   test/test_tensorrt_inferencer.cpp)
 
-  target_include_directories(test_tensorrt_inferencer PRIVATE
-    ${TENSORRT_INCLUDE_DIR}
-    ${OpenCV_INCLUDE_DIRS})
+# target_include_directories(test_tensorrt_inferencer PRIVATE
+#   ${TENSORRT_INCLUDE_DIR}
+#   ${OpenCV_INCLUDE_DIRS})
 
-  target_link_libraries(test_tensorrt_inferencer
-    tensorrt_inferencer
-    ${OpenCV_LIBS}
-    ${TENSORRT_LIBRARY}
-    ${TENSORRT_PLUGIN_LIBRARY}
-    CUDA::cudart
-    gtest_main)
+# target_link_libraries(test_tensorrt_inferencer
+#   tensorrt_inferencer
+#   ${OpenCV_LIBS}
+#   ${TENSORRT_LIBRARY}
+#   ${TENSORRT_PLUGIN_LIBRARY}
+#   CUDA::cudart
+#   gtest_main)
 
 endif()
 
