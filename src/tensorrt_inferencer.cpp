@@ -11,7 +11,7 @@
 
 
 // Logger implementation
-void Logger::log(Severity severity, const char* msg) noexcept
+void Logger::log(Severity severity, const char * msg) noexcept
 {
   if (severity <= min_severity_) {
     const char * severity_str;
@@ -42,14 +42,14 @@ void * CudaMemoryManager::allocate_host_pinned(size_t size)
   return ptr;
 }
 
-void CudaMemoryManager::free_device(void* ptr)
+void CudaMemoryManager::free_device(void * ptr)
 {
   if (ptr) {
     CUDA_CHECK(cudaFree(ptr));
   }
 }
 
-void CudaMemoryManager::free_host_pinned(void* ptr)
+void CudaMemoryManager::free_host_pinned(void * ptr)
 {
   if (ptr) {
     CUDA_CHECK(cudaFreeHost(ptr));
@@ -57,8 +57,9 @@ void CudaMemoryManager::free_host_pinned(void* ptr)
 }
 
 // TensorRTInferencer implementation
-TensorRTInferencer::TensorRTInferencer(const std::string& engine_path, const Config& config)
-  : config_(config) {
+TensorRTInferencer::TensorRTInferencer(const std::string & engine_path, const Config & config)
+: config_(config)
+{
   try {
     // Initialize logger
     logger_ = std::make_unique<Logger>(config_.log_level);
@@ -76,7 +77,7 @@ TensorRTInferencer::TensorRTInferencer(const std::string& engine_path, const Con
     // Warm up the engine
     warmup();
 
-  } catch (const std::exception& e) {
+  } catch (const std::exception & e) {
     cleanup();
     throw TensorRTException("Initialization failed: " + std::string(e.what()));
   }
@@ -111,7 +112,7 @@ void TensorRTInferencer::initialize_engine(const std::string & engine_path)
 }
 
 std::vector<uint8_t> TensorRTInferencer::load_engine_file(
-  const std::string& engine_path) const
+  const std::string & engine_path) const
 {
   std::ifstream file(engine_path, std::ios::binary | std::ios::ate);
   if (!file.is_open()) {
@@ -122,7 +123,7 @@ std::vector<uint8_t> TensorRTInferencer::load_engine_file(
   file.seekg(0, std::ios::beg);
 
   std::vector<uint8_t> buffer(size);
-  if (!file.read(reinterpret_cast<char*>(buffer.data()), size)) {
+  if (!file.read(reinterpret_cast<char *>(buffer.data()), size)) {
     throw std::runtime_error("Failed to read engine file: " + engine_path);
   }
 
@@ -158,9 +159,9 @@ void TensorRTInferencer::initialize_memory()
   output_size_ = 1 * config_.classes * config_.height * config_.width * sizeof(float);
 
   // Allocate pinned host memory
-  buffers_.pinned_input = static_cast<float*>(
+  buffers_.pinned_input = static_cast<float *>(
     CudaMemoryManager::allocate_host_pinned(input_size_));
-  buffers_.pinned_output = static_cast<float*>(
+  buffers_.pinned_output = static_cast<float *>(
     CudaMemoryManager::allocate_host_pinned(output_size_));
 
   // Allocate device memory
@@ -196,7 +197,7 @@ void TensorRTInferencer::warmup()
   reset_performance_stats();
 
   std::cout << "Engine warmed up with " << config_.warmup_iterations
-    << " iterations" << std::endl;
+            << " iterations" << std::endl;
 }
 
 void TensorRTInferencer::cleanup()
@@ -276,7 +277,7 @@ cudaStream_t TensorRTInferencer::get_next_stream() const
 }
 
 void TensorRTInferencer::preprocess_image_optimized(
-  const cv::Mat& image, float* output) const
+  const cv::Mat & image, float * output) const
 {
   cv::Mat img_resized;
   cv::resize(image, img_resized, cv::Size(config_.width, config_.height));
@@ -307,10 +308,10 @@ void TensorRTInferencer::update_performance_stats(double inference_time_ms) cons
   std::lock_guard<std::mutex> lock(perf_mutex_);
 
   perf_stats_.total_inferences++;
-  perf_stats_.min_inference_time_ms = std::min(perf_stats_.min_inference_time_ms,
-                                              inference_time_ms);
-  perf_stats_.max_inference_time_ms = std::max(perf_stats_.max_inference_time_ms,
-                                              inference_time_ms);
+  perf_stats_.min_inference_time_ms =
+    std::min(perf_stats_.min_inference_time_ms, inference_time_ms);
+  perf_stats_.max_inference_time_ms =
+    std::max(perf_stats_.max_inference_time_ms, inference_time_ms);
 
   // Update running average
   double delta = inference_time_ms - perf_stats_.avg_inference_time_ms;

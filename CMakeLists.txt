@@ -89,22 +89,22 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 
-# find_package(ament_cmake_gtest REQUIRED)
+  find_package(ament_cmake_gtest REQUIRED)
 
-# ament_add_gtest(test_tensorrt_inferencer
-#   test/test_tensorrt_inferencer.cpp)
+  ament_add_gtest(test_tensorrt_inferencer
+    test/test_tensorrt_inferencer.cpp)
 
-# target_include_directories(test_tensorrt_inferencer PRIVATE
-#   ${TENSORRT_INCLUDE_DIR}
-#   ${OpenCV_INCLUDE_DIRS})
+  target_include_directories(test_tensorrt_inferencer PRIVATE
+    ${TENSORRT_INCLUDE_DIR}
+    ${OpenCV_INCLUDE_DIRS})
 
-# target_link_libraries(test_tensorrt_inferencer
-#   tensorrt_inferencer
-#   ${OpenCV_LIBS}
-#   ${TENSORRT_LIBRARY}
-#   ${TENSORRT_PLUGIN_LIBRARY}
-#   CUDA::cudart
-#   gtest_main)
+  target_link_libraries(test_tensorrt_inferencer
+    tensorrt_inferencer
+    ${OpenCV_LIBS}
+    ${TENSORRT_LIBRARY}
+    ${TENSORRT_PLUGIN_LIBRARY}
+    CUDA::cudart
+    gtest_main)
 
 endif()
 

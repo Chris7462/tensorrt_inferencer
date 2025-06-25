@@ -23,14 +23,14 @@ class TensorRTException : public std::runtime_error
 {
 public:
   explicit TensorRTException(const std::string & message)
-    : std::runtime_error("TensorRT Error: " + message) {}
+  : std::runtime_error("TensorRT Error: " + message) {}
 };
 
 class CudaException : public std::runtime_error
 {
 public:
-  explicit CudaException(const std::string& message, cudaError_t error)
-    : std::runtime_error("CUDA Error: " + message + " (" + cudaGetErrorString(error) + ")") {}
+  explicit CudaException(const std::string & message, cudaError_t error)
+  : std::runtime_error("CUDA Error: " + message + " (" + cudaGetErrorString(error) + ")") {}
 };
 
 // CUDA error checking macro
@@ -47,7 +47,7 @@ class Logger : public nvinfer1::ILogger
 {
 public:
   explicit Logger(Severity min_severity = Severity::kWARNING)
-    : min_severity_(min_severity) {}
+  : min_severity_(min_severity) {}
 
   void log(Severity severity, const char * msg) noexcept override;
 
@@ -118,8 +118,8 @@ public:
      * @details Initializes the configuration with default values.
      */
     Config()
-      : height(374), width(1238), classes(21), num_streams(1),
-        warmup_iterations(2), log_level(Logger::Severity::kWARNING) {}
+    : height(374), width(1238), classes(21), num_streams(1),
+      warmup_iterations(2), log_level(Logger::Severity::kWARNING) {}
   };
 
   // Constructor with configuration
@@ -129,10 +129,10 @@ public:
   ~TensorRTInferencer();
 
   // Disable copy and move semantics - use std::unique_ptr for ownership transfer
-  TensorRTInferencer(const TensorRTInferencer&) = delete;
-  TensorRTInferencer& operator=(const TensorRTInferencer&) = delete;
-  TensorRTInferencer(TensorRTInferencer&&) = delete;
-  TensorRTInferencer& operator=(TensorRTInferencer&&) = delete;
+  TensorRTInferencer(const TensorRTInferencer &) = delete;
+  TensorRTInferencer & operator=(const TensorRTInferencer &) = delete;
+  TensorRTInferencer(TensorRTInferencer &&) = delete;
+  TensorRTInferencer & operator=(TensorRTInferencer &&) = delete;
 
   // Main inference method
   std::vector<float> infer(const cv::Mat & image);
@@ -145,13 +145,13 @@ public:
     double max_inference_time_ms;
     size_t total_inferences;
     PerformanceStats()
-      : avg_inference_time_ms(0.0),
-        min_inference_time_ms(std::numeric_limits<double>::max()),
-        max_inference_time_ms(0.0),
-        total_inferences(0) {}
+    : avg_inference_time_ms(0.0),
+      min_inference_time_ms(std::numeric_limits<double>::max()),
+      max_inference_time_ms(0.0),
+      total_inferences(0) {}
   };
 
-  PerformanceStats get_performance_stats() const { return perf_stats_; }
+  PerformanceStats get_performance_stats() const {return perf_stats_;}
   void reset_performance_stats();
 
 private:
@@ -199,8 +199,8 @@ private:
     void * device_output;
 
     MemoryBuffers()
-      : pinned_input(nullptr), pinned_output(nullptr),
-        device_input(nullptr), device_output(nullptr) {}
+    : pinned_input(nullptr), pinned_output(nullptr),
+      device_input(nullptr), device_output(nullptr) {}
   } buffers_;
 
   // CUDA streams for pipelining
