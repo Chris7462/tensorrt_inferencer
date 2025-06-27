@@ -18,6 +18,9 @@
 #include <opencv2/core.hpp>
 
 
+namespace tensorrt_inferencer
+{
+
 // Custom exception classes
 class TensorRTException : public std::runtime_error
 {
@@ -137,6 +140,12 @@ public:
   // Main inference method
   std::vector<float> infer(const cv::Mat & image);
 
+    // Utility functions
+  cv::Mat decode_segmentation(const std::vector<float> & output_data) const;
+  cv::Mat create_overlay(
+    const cv::Mat & original, const cv::Mat & segmentation,
+    float alpha = 0.5f) const;
+
   // Performance monitoring
   struct PerformanceStats
   {
@@ -213,3 +222,5 @@ private:
   mutable PerformanceStats perf_stats_;
   mutable std::mutex perf_mutex_;
 };
+
+} // namespace tensorrt_inferencer

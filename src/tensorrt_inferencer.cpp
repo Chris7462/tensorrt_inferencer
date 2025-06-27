@@ -10,6 +10,9 @@
 #include "tensorrt_inferencer/tensorrt_inferencer.hpp"
 
 
+namespace tensorrt_inferencer
+{
+
 // Logger implementation
 void Logger::log(Severity severity, const char * msg) noexcept
 {
@@ -258,6 +261,52 @@ std::vector<float> TensorRTInferencer::infer(const cv::Mat & image)
   return result;
 }
 
+cv::Mat TensorRTInferencer::decode_segmentation(const std::vector<float> & output_data) const
+{
+  cv::Mat seg_map(config_.height, config_.width, CV_8UC3);
+  const float * data = output_data.data();
+
+  // Optimized argmax with vectorization hints
+  for (int y = 0; y < config_.height; ++y) {
+    for (int x = 0; x < config_.width; ++x) {
+      int pixel_idx = y * config_.width + x;
+
+      // Find class with maximum probability
+      int max_class = 0;
+      float max_val = data[pixel_idx];
+
+      for (int c = 1; c < config_.classes; ++c) {
+        float val = data[c * config_.height * config_.width + pixel_idx];
+        if (val > max_val) {
+          max_val = val;
+          max_class = c;
+        }
+      }
+
+      // Apply colormap
+      const auto & color = config::PASCAL_VOC_COLORMAP[max_class];
+      seg_map.at<cv::Vec3b>(y, x) = cv::Vec3b(color[2], color[1], color[0]); // BGR
+    }
+  }
+
+  return seg_map;
+}
+
+cv::Mat TensorRTInferencer::create_overlay(
+  const cv::Mat & original, const cv::Mat & segmentation, float alpha) const
+{
+  cv::Mat overlay;
+  cv::Mat seg_resized;
+
+  // Resize segmentation to match original image size
+  cv::resize(segmentation, seg_resized, original.size(), 0, 0, cv::INTER_NEAREST);
+
+  // Create weighted overlay
+  cv::addWeighted(original, 1.0f - alpha, seg_resized, alpha, 0, overlay);
+
+  return overlay;
+}
+
 void TensorRTInferencer::validate_image(const cv::Mat & image) const
 {
   if (image.empty()) {
@@ -317,3 +366,5 @@ void TensorRTInferencer::update_performance_stats(double inference_time_ms) cons
   double delta = inference_time_ms - perf_stats_.avg_inference_time_ms;
   perf_stats_.avg_inference_time_ms += delta / perf_stats_.total_inferences;
 }
+
+} // namespace tensorrt_inferencer
