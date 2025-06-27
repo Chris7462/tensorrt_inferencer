@@ -42,17 +42,17 @@ target_include_directories(tensorrt_inferencer
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
-  PRIVATE
-    ${TENSORRT_INCLUDE_DIRS}
+    ${TENSORRT_INCLUDE_DIR}  # Make this PUBLIC so downstream packages can use it
     ${OpenCV_INCLUDE_DIRS})
-    #${CUDAToolkit_INCLUDE_DIRS}  # Not needed as CUDAToolkit is linked via CUDA::cudart for Modern CMake
+    #${CUDAToolkit_INCLUDE_DIRS}  # Not needed as CUDA::cudart in the target_link_libraries will provide CUDA includes for Modern CMake
 
 # Link OpenCV libraries to the target
 target_link_libraries(tensorrt_inferencer
+  PUBLIC
+    CUDA::cudart  # This automatically provides CUDA includes. Make this PUBLIC so downstream packages can use it
   PRIVATE
     ${TENSORRT_LIBRARY}
     ${TENSORRT_PLUGIN_LIBRARY}
-    CUDA::cudart  # This automatically provides CUDA includes
     ${OpenCV_LIBS})
 
 target_compile_features(tensorrt_inferencer PUBLIC cxx_std_17)
