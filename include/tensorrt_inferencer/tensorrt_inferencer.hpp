@@ -140,6 +140,23 @@ public:
   // Main inference method
   std::vector<float> infer(const cv::Mat & image);
 
+  // Async inference
+  class AsyncResult
+  {
+  public:
+    AsyncResult(cudaStream_t stream, size_t output_size);
+    std::vector<float> get(); // Blocks until result is ready
+    bool is_ready() const;
+
+  private:
+    cudaStream_t stream_;
+    std::vector<float> result_;
+    mutable bool ready_;
+    mutable std::mutex mutex_;
+  };
+
+  std::unique_ptr<AsyncResult> infer_async(const cv::Mat & image);
+
     // Utility functions
   cv::Mat decode_segmentation(const std::vector<float> & output_data) const;
   cv::Mat create_overlay(

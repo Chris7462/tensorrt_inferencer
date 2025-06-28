@@ -1,6 +1,7 @@
 //// C++ standard library includes
 #include <chrono>
 #include <numeric>
+#include <thread>
 #include <stdexcept>
 
 // OpenCV includes
@@ -172,6 +173,31 @@ TEST_F(TensorRTInferencerTest, TestMultipleInferences)
 
   // Performance expectations (adjust based on your hardware)
   EXPECT_LT(avg_time, 100.0); // Should be less than 100ms on decent hardware
+}
+
+TEST_F(TensorRTInferencerTest, TestAsyncInference)
+{
+  cv::Mat image = load_test_image();
+
+  // Start async inference
+  auto async_result = inferencer_->infer_async(image);
+
+  // Do some other work while inference is running
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+  // Check if result is ready (may or may not be)
+  bool ready_before_get = async_result->is_ready();
+
+  // Get result (this will block if not ready)
+  auto output = async_result->get();
+
+  // Result should definitely be ready now
+  EXPECT_TRUE(async_result->is_ready());
+
+  // Validate output
+  EXPECT_EQ(output.size(), num_classes_ * input_height_ * input_width_);
+
+  std::cout << "Async inference - ready before get: " << ready_before_get << std::endl;
 }
 
 TEST_F(TensorRTInferencerTest, TestInvalidInputHandling)

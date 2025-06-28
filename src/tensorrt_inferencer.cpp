@@ -261,6 +261,63 @@ std::vector<float> TensorRTInferencer::infer(const cv::Mat & image)
   return result;
 }
 
+// AsyncResult implementation
+TensorRTInferencer::AsyncResult::AsyncResult(cudaStream_t stream, size_t output_size)
+: stream_(stream), result_(output_size), ready_(false)
+{
+}
+
+std::vector<float> TensorRTInferencer::AsyncResult::get()
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!ready_) {
+    CUDA_CHECK(cudaStreamSynchronize(stream_));
+    ready_ = true;
+  }
+  return result_;
+}
+
+bool TensorRTInferencer::AsyncResult::is_ready() const
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!ready_) {
+    cudaError_t status = cudaStreamQuery(stream_);
+    if (status == cudaSuccess) {
+      ready_ = true;
+    } else if (status != cudaErrorNotReady) {
+      throw CudaException("Stream query failed", status);
+    }
+  }
+  return ready_;
+}
+
+std::unique_ptr<TensorRTInferencer::AsyncResult> TensorRTInferencer::infer_async(
+  const cv::Mat & image)
+{
+  validate_image(image);
+
+  cudaStream_t stream = get_next_stream();
+  auto result = std::make_unique<AsyncResult>(stream, output_size_ / sizeof(float));
+
+  // Preprocess directly into pinned memory
+  preprocess_image_optimized(image, buffers_.pinned_input);
+
+  // Async copy to GPU
+  CUDA_CHECK(cudaMemcpyAsync(buffers_.device_input, buffers_.pinned_input,
+    input_size_, cudaMemcpyHostToDevice, stream));
+
+  // Run inference
+  if (!context_->enqueueV3(stream)) {
+    throw TensorRTException("Failed to enqueue inference");
+  }
+
+  // Async copy result back
+  CUDA_CHECK(cudaMemcpyAsync(buffers_.pinned_output, buffers_.device_output,
+    output_size_, cudaMemcpyDeviceToHost, stream));
+
+  return result;
+}
+
 cv::Mat TensorRTInferencer::decode_segmentation(const std::vector<float> & output_data) const
 {
   cv::Mat seg_map(config_.height, config_.width, CV_8UC3);
