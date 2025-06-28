@@ -1,6 +1,7 @@
 //// C++ standard library includes
 #include <chrono>
 #include <numeric>
+#include <thread>
 #include <stdexcept>
 
 // OpenCV includes
