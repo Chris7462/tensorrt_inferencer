@@ -196,9 +196,6 @@ void TensorRTInferencer::warmup()
     infer(dummy_image);
   }
 
-  // Reset performance stats after warmup
-  reset_performance_stats();
-
   std::cout << "Engine warmed up with " << config_.warmup_iterations
             << " iterations" << std::endl;
 }
@@ -251,7 +248,6 @@ std::vector<float> TensorRTInferencer::infer(const cv::Mat & image)
 
   auto end_time = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration<double, std::milli>(end_time - start_time);
-  update_performance_stats(duration.count());
 
   // Convert to vector
   size_t num_elements = output_size_ / sizeof(float);
@@ -344,27 +340,6 @@ void TensorRTInferencer::preprocess_image_optimized(
     std::memcpy(output + c * config_.height * config_.width,
       normalized.data, config_.height * config_.width * sizeof(float));
   }
-}
-
-void TensorRTInferencer::reset_performance_stats()
-{
-  std::lock_guard<std::mutex> lock(perf_mutex_);
-  perf_stats_ = PerformanceStats{};
-}
-
-void TensorRTInferencer::update_performance_stats(double inference_time_ms) const
-{
-  std::lock_guard<std::mutex> lock(perf_mutex_);
-
-  perf_stats_.total_inferences++;
-  perf_stats_.min_inference_time_ms =
-    std::min(perf_stats_.min_inference_time_ms, inference_time_ms);
-  perf_stats_.max_inference_time_ms =
-    std::max(perf_stats_.max_inference_time_ms, inference_time_ms);
-
-  // Update running average
-  double delta = inference_time_ms - perf_stats_.avg_inference_time_ms;
-  perf_stats_.avg_inference_time_ms += delta / perf_stats_.total_inferences;
 }
 
 } // namespace tensorrt_inferencer

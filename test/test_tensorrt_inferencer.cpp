@@ -43,13 +43,6 @@ protected:
 
   void TearDown() override
   {
-    // Performance stats will be printed automatically
-    auto stats = inferencer_->get_performance_stats();
-    std::cout << "Performance Statistics:" << std::endl;
-    std::cout << "Total inferences: " << stats.total_inferences << std::endl;
-    std::cout << "Average time: " << stats.avg_inference_time_ms << " ms" << std::endl;
-    std::cout << "Min time: " << stats.min_inference_time_ms << " ms" << std::endl;
-    std::cout << "Max time: " << stats.max_inference_time_ms << " ms" << std::endl;
   }
 
   cv::Mat load_test_image()
@@ -190,30 +183,6 @@ TEST_F(TensorRTInferencerTest, TestInvalidInputHandling)
   EXPECT_NO_THROW(inferencer_->infer(small_image));
 }
 
-TEST_F(TensorRTInferencerTest, TestPerformanceMonitoring)
-{
-  cv::Mat image = load_test_image();
-
-  // Reset stats
-  inferencer_->reset_performance_stats();
-
-  // Run some inferences
-  const int num_inferences = 5;
-  for (int i = 0; i < num_inferences; ++i) {
-    inferencer_->infer(image);
-  }
-
-  // Check performance stats
-  auto stats = inferencer_->get_performance_stats();
-
-  EXPECT_EQ(stats.total_inferences, num_inferences);
-  EXPECT_GT(stats.avg_inference_time_ms, 0.0);
-  EXPECT_GE(stats.min_inference_time_ms, 0.0);
-  EXPECT_GE(stats.max_inference_time_ms, stats.min_inference_time_ms);
-  EXPECT_LE(stats.min_inference_time_ms, stats.avg_inference_time_ms);
-  EXPECT_GE(stats.max_inference_time_ms, stats.avg_inference_time_ms);
-}
-
 TEST_F(TensorRTInferencerTest, TestConfigurationAccess)
 {
   EXPECT_EQ(inferencer_->config_.height, input_height_);
@@ -233,9 +202,6 @@ TEST_F(TensorRTInferencerTest, TestBenchmarkInference)
     inferencer_->infer(image);
   }
 
-  // Reset stats after warmup
-  inferencer_->reset_performance_stats();
-
   // Benchmark
   auto start = std::chrono::high_resolution_clock::now();
 
@@ -254,11 +220,6 @@ TEST_F(TensorRTInferencerTest, TestBenchmarkInference)
   std::cout << "Total time: " << total_duration.count() << " ms" << std::endl;
   std::cout << "Average time per inference: " << avg_time << " ms" << std::endl;
   std::cout << "Throughput: " << fps << " FPS" << std::endl;
-
-  // Print detailed stats
-  auto stats = inferencer_->get_performance_stats();
-  std::cout << "Min time: " << stats.min_inference_time_ms << " ms" << std::endl;
-  std::cout << "Max time: " << stats.max_inference_time_ms << " ms" << std::endl;
 }
 
 // Test with multiple different images (if available)

@@ -146,23 +146,6 @@ public:
     const cv::Mat & original, const cv::Mat & segmentation,
     float alpha = 0.5f) const;
 
-  // Performance monitoring
-  struct PerformanceStats
-  {
-    double avg_inference_time_ms;
-    double min_inference_time_ms;
-    double max_inference_time_ms;
-    size_t total_inferences;
-    PerformanceStats()
-    : avg_inference_time_ms(0.0),
-      min_inference_time_ms(std::numeric_limits<double>::max()),
-      max_inference_time_ms(0.0),
-      total_inferences(0) {}
-  };
-
-  PerformanceStats get_performance_stats() const {return perf_stats_;}
-  void reset_performance_stats();
-
 private:
   // Initialization methods
   void initialize_engine(const std::string & engine_path);
@@ -178,7 +161,6 @@ private:
   std::vector<uint8_t> load_engine_file(const std::string & engine_path) const;
   cudaStream_t get_next_stream() const;
   void preprocess_image_optimized(const cv::Mat & image, float * output) const;
-  void update_performance_stats(double inference_time_ms) const;
 
   // Validation methods
   void validate_image(const cv::Mat & image) const;
@@ -217,10 +199,6 @@ private:
   // Stream management
   mutable std::mutex stream_mutex_;
   mutable size_t current_stream_ = 0;
-
-  // Performance tracking
-  mutable PerformanceStats perf_stats_;
-  mutable std::mutex perf_mutex_;
 };
 
 } // namespace tensorrt_inferencer
