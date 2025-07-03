@@ -4,6 +4,7 @@
 
 // OpenCV includes
 #include <opencv2/imgproc.hpp>
+#include <opencv2/core/cuda.hpp>
 
 // local header files: This project includes local header files.
 #include "tensorrt_inferencer/config.hpp"
@@ -250,6 +251,38 @@ std::vector<float> TensorRTInferencer::infer(const cv::Mat & image)
 
   return result;
 }
+
+void TensorRTInferencer::infer_gpu(const cv::Mat & image, cv::cuda::GpuMat & output_gpu)
+{
+  validate_image(image);
+
+  cudaStream_t stream = get_next_stream();
+
+  // Preprocess directly into pinned memory
+  preprocess_image_optimized(image, buffers_.pinned_input);
+
+  // Async copy to GPU
+  CUDA_CHECK(cudaMemcpyAsync(buffers_.device_input, buffers_.pinned_input,
+    input_size_, cudaMemcpyHostToDevice, stream));
+
+  // Run inference
+  if (!context_->enqueueV3(stream)) {
+    throw TensorRTException("Failed to enqueue inference");
+  }
+
+  // Output stays on device: wrap raw ptr in GpuMat header
+  // Assuming output is shaped [C, H, W] as 1D float buffer
+  int height = config_.height;
+  int width = config_.width;
+  int channels = config_.num_classes;  // e.g. 19 for segmentation
+
+  // Create GpuMat header for the float* device_output buffer
+  output_gpu = cv::cuda::GpuMat(height, width * channels, CV_32FC1, buffers_.device_output);
+
+  // You may want to synchronize if postprocessing happens immediately
+  CUDA_CHECK(cudaStreamSynchronize(stream));
+}
+
 
 cv::Mat TensorRTInferencer::decode_segmentation(const std::vector<float> & output_data) const
 {

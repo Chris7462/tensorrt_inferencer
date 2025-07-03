@@ -110,6 +110,7 @@ public:
 
   // Main inference method
   std::vector<float> infer(const cv::Mat & image);
+  void infer_gpu(const cv::Mat & image, cv::cuda::GpuMat & output_gpu);
 
     // Utility functions
   cv::Mat decode_segmentation(const std::vector<float> & output_data) const;

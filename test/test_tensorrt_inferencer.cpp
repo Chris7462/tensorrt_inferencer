@@ -7,6 +7,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/core/cuda.hpp>
 //#include <opencv2/highgui.hpp>
 
 // Google Test includes
@@ -99,6 +100,31 @@ TEST_F(TensorRTInferencerTest, TestBasicInference)
   bool has_valid_values = std::any_of(output.begin(), output.end(),
       [](float val) {return std::isfinite(val);});
   EXPECT_TRUE(has_valid_values);
+}
+
+TEST_F(TensorRTInferencerTest, InferenceGPUOutputShapeAndType)
+{
+  cv::Mat image = load_test_image();
+
+  // Perform inference on GPU
+  cv::cuda::GpuMat output_gpu;
+  ASSERT_NO_THROW(inferencer_->infer_gpu(image, output_gpu));
+
+  // Assert the GPU tensor is valid
+  ASSERT_FALSE(output_gpu.empty());
+
+  // Check size and type (expected: height x (width × num_classes), float32)
+  EXPECT_EQ(output_gpu.rows, inferencer_->config_.height);
+  EXPECT_EQ(output_gpu.cols, inferencer_->config_.width * inferencer_->config_.num_classes);
+  EXPECT_EQ(output_gpu.type(), CV_32FC1);
+
+  // Optional: download just for testing
+  cv::Mat output_cpu;
+  output_gpu.download(output_cpu);
+
+  // Output sanity check (optional)
+  EXPECT_EQ(output_cpu.total(),
+    inferencer_->config_.height * inferencer_->config_.width * inferencer_->config_.num_classes);
 }
 
 TEST_F(TensorRTInferencerTest, TestSegmentationDecoding)
