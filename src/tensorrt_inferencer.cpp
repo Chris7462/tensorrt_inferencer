@@ -193,9 +193,10 @@ void TensorRTInferencer::initialize_streams()
 void TensorRTInferencer::warmup()
 {
   cv::Mat dummy_image = cv::Mat::zeros(config_.height, config_.width, CV_8UC3);
+  cv::cuda::GpuMat dummy_output_gpu;
 
   for (int i = 0; i < config_.warmup_iterations; ++i) {
-    infer(dummy_image);
+    infer_gpu(dummy_image, dummy_output_gpu);
   }
 
   std::cout << "Engine warmed up with " << config_.warmup_iterations
@@ -274,7 +275,7 @@ void TensorRTInferencer::infer_gpu(const cv::Mat & image, cv::cuda::GpuMat & out
   // Assuming output is shaped [C, H, W] as 1D float buffer
   int height = config_.height;
   int width = config_.width;
-  int channels = config_.num_classes;  // e.g. 19 for segmentation
+  int channels = config_.num_classes;
 
   // Create GpuMat header for the float* device_output buffer
   output_gpu = cv::cuda::GpuMat(height, width * channels, CV_32FC1, buffers_.device_output);

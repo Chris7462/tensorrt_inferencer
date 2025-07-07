@@ -13,6 +13,9 @@
 // OpenCV includes
 #include <opencv2/core.hpp>
 
+// local header
+#include "tensorrt_inferencer/exception.hpp"
+
 
 namespace tensorrt_inferencer
 {
