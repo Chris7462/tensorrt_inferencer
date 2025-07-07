@@ -19,6 +19,8 @@
 #define private public
 #include "tensorrt_inferencer/tensorrt_inferencer.hpp"
 #undef private
+// Local includes for GPU decoding
+#include "tensorrt_inferencer/decode_argmax_gpu.hpp"
 
 
 class TensorRTInferencerTest : public ::testing::Test
@@ -130,10 +132,18 @@ TEST_F(TensorRTInferencerTest, InferenceGPUOutputShapeAndType)
 TEST_F(TensorRTInferencerTest, TestSegmentationDecoding)
 {
   cv::Mat image = load_test_image();
+  auto start = std::chrono::high_resolution_clock::now();
   auto output = inferencer_->infer(image);
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration<double, std::milli>(end - start);
+  std::cout << "Infer time: " << duration.count() << " ms" << std::endl;
 
   // Decode segmentation
+  auto start1 = std::chrono::high_resolution_clock::now();
   cv::Mat segmentation = inferencer_->decode_segmentation(output);
+  auto end1 = std::chrono::high_resolution_clock::now();
+  auto duration1 = std::chrono::duration<double, std::milli>(end1 - start1);
+  std::cout << "Segmentation time: " << duration1.count() << " ms" << std::endl;
 
   EXPECT_EQ(segmentation.rows, inferencer_->config_.height);
   EXPECT_EQ(segmentation.cols, inferencer_->config_.width);
@@ -156,6 +166,50 @@ TEST_F(TensorRTInferencerTest, TestSegmentationDecoding)
   cv::waitKey(0);
   cv::destroyAllWindows();
   */
+}
+
+TEST_F(TensorRTInferencerTest, TestGPUArgmaxDecoding)
+{
+  cv::Mat image = load_test_image();
+
+  // 1. GPU inference
+  cv::cuda::GpuMat scores_gpu;
+  auto start = std::chrono::high_resolution_clock::now();
+  ASSERT_NO_THROW(inferencer_->infer_gpu(image, scores_gpu));
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration<double, std::milli>(end - start);
+  std::cout << "Infer GPU time: " << duration.count() << " ms" << std::endl;
+
+  ASSERT_FALSE(scores_gpu.empty());
+
+  // 2. Run argmax decoding on GPU
+  cv::cuda::GpuMat class_ids_gpu;
+  int C = inferencer_->config_.num_classes;
+  int H = inferencer_->config_.height;
+  int W = inferencer_->config_.width;
+
+  cudaStream_t stream = inferencer_->get_next_stream();
+  auto start1 = std::chrono::high_resolution_clock::now();
+  tensorrt_inferencer::decode_argmax_gpu(
+    scores_gpu, class_ids_gpu, C, H, W, stream);
+  auto end1 = std::chrono::high_resolution_clock::now();
+  auto duration1 = std::chrono::duration<double, std::milli>(end1 - start1);
+  std::cout << "Decode GPU kernel time: " << duration1.count() << " ms" << std::endl;
+
+  // 3. Validate output
+  ASSERT_FALSE(class_ids_gpu.empty());
+  EXPECT_EQ(class_ids_gpu.rows, H);
+  EXPECT_EQ(class_ids_gpu.cols, W);
+  EXPECT_EQ(class_ids_gpu.type(), CV_8UC1);
+
+  // 4. Optionally check value ranges
+  cv::Mat class_ids_cpu;
+  class_ids_gpu.download(class_ids_cpu);
+
+  double min_val, max_val;
+  cv::minMaxLoc(class_ids_cpu, &min_val, &max_val);
+  EXPECT_GE(min_val, 0);
+  EXPECT_LT(max_val, C);  // class index < num_classes
 }
 
 TEST_F(TensorRTInferencerTest, TestMultipleInferences)
