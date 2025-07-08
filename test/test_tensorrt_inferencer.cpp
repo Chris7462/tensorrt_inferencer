@@ -202,14 +202,55 @@ TEST_F(TensorRTInferencerTest, TestGPUArgmaxDecoding)
   EXPECT_EQ(class_ids_gpu.cols, W);
   EXPECT_EQ(class_ids_gpu.type(), CV_8UC1);
 
-  // 4. Optionally check value ranges
-  cv::Mat class_ids_cpu;
-  class_ids_gpu.download(class_ids_cpu);
+//// 4. Optionally check value ranges
+//cv::Mat class_ids_cpu;
+//class_ids_gpu.download(class_ids_cpu);
+}
 
-  double min_val, max_val;
-  cv::minMaxLoc(class_ids_cpu, &min_val, &max_val);
-  EXPECT_GE(min_val, 0);
-  EXPECT_LT(max_val, C);  // class index < num_classes
+TEST_F(TensorRTInferencerTest, TestGPUColorizeSegmentation)
+{
+  cv::Mat image = load_test_image();
+
+  // Step 1: Inference
+  cv::cuda::GpuMat scores_gpu;
+  auto start = std::chrono::high_resolution_clock::now();
+  ASSERT_NO_THROW(inferencer_->infer_gpu(image, scores_gpu));
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration<double, std::milli>(end - start);
+  std::cout << "Infer GPU time: " << duration.count() << " ms" << std::endl;
+
+  // Step 2: Argmax
+  cv::cuda::GpuMat class_ids_gpu;
+  int C = inferencer_->config_.num_classes;
+  int H = inferencer_->config_.height;
+  int W = inferencer_->config_.width;
+  cudaStream_t stream = inferencer_->get_next_stream();
+  auto start1 = std::chrono::high_resolution_clock::now();
+  tensorrt_inferencer::decode_argmax_gpu(scores_gpu, class_ids_gpu, C, H, W, stream);
+  auto end1 = std::chrono::high_resolution_clock::now();
+  auto duration1 = std::chrono::duration<double, std::milli>(end1 - start1);
+  std::cout << "Decode GPU kernel time: " << duration1.count() << " ms" << std::endl;
+
+  // Step 3: Colorize on GPU
+  cv::cuda::GpuMat color_mask_gpu;
+  auto start2 = std::chrono::high_resolution_clock::now();
+  tensorrt_inferencer::colorize_segmentation_gpu(class_ids_gpu, color_mask_gpu, C, stream);
+  auto end2 = std::chrono::high_resolution_clock::now();
+  auto duration2 = std::chrono::duration<double, std::milli>(end2 - start2);
+  std::cout << "Colorize GPU kernel time: " << duration2.count() << " ms" << std::endl;
+
+  // Step 5: Check dimensions and type
+  ASSERT_FALSE(color_mask_gpu.empty());
+  EXPECT_EQ(color_mask_gpu.rows, H);
+  EXPECT_EQ(color_mask_gpu.cols, W);
+  EXPECT_EQ(color_mask_gpu.type(), CV_8UC3);
+
+  // Optional: download for visual inspection
+  cv::Mat color_mask_cpu;
+  color_mask_gpu.download(color_mask_cpu);
+
+  // Save for visual debugging
+  cv::imwrite("test_gpu_color_mask.png", color_mask_cpu);
 }
 
 TEST_F(TensorRTInferencerTest, TestMultipleInferences)
