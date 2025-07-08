@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(tensorrt_inferencer VERSION 1.0.0)
+project(tensorrt_inferencer VERSION 1.0.0 LANGUAGES CXX CUDA)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -9,6 +9,18 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(CUDAToolkit REQUIRED)
 find_package(OpenCV REQUIRED)
+
+# Enable CUDA separable compilation
+set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+
+# Auto-detect CUDA architecture if not specified
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  set(CMAKE_CUDA_ARCHITECTURES "native")
+endif()
+# Manual architecture options (uncomment as needed)
+# set(CMAKE_CUDA_ARCHITECTURES 75)  # For RTX 20xx series (Turing)
+# set(CMAKE_CUDA_ARCHITECTURES 86)  # For RTX 30xx series (Ampere)
+# set(CMAKE_CUDA_ARCHITECTURES 89)  # For RTX 40xx series (Ada Lovelace)
 
 # Find TensorRT
 set(TENSORRT_ROOT /usr/local/tensorrt)
@@ -50,10 +62,32 @@ target_include_directories(tensorrt_inferencer
 target_link_libraries(tensorrt_inferencer
   PUBLIC
     CUDA::cudart  # This automatically provides CUDA includes. Make this PUBLIC so downstream packages can use it
-  PRIVATE
     ${TENSORRT_LIBRARY}
+    ${TENSORRT_ONNX_PARSER_LIBRARY}
     ${TENSORRT_PLUGIN_LIBRARY}
+  PRIVATE
     ${OpenCV_LIBS})
+
+# Set target properties
+set_target_properties(tensorrt_inferencer PROPERTIES
+  CUDA_SEPARABLE_COMPILATION ON
+  CUDA_RESOLVE_DEVICE_SYMBOLS ON  # Important for separate compilation
+)
+
+# Compiler-specific options
+target_compile_options(tensorrt_inferencer PRIVATE
+  $<$<COMPILE_LANGUAGE:CUDA>:
+    --extended-lambda
+    -O3
+    --use_fast_math
+    -Xcompiler=-Wall,-Wextra
+  >
+  $<$<COMPILE_LANGUAGE:CXX>:
+    -Wall
+    -Wextra
+    -O3
+  >
+)
 
 target_compile_features(tensorrt_inferencer PUBLIC cxx_std_17)
 
@@ -100,10 +134,6 @@ if(BUILD_TESTING)
 
   target_link_libraries(test_tensorrt_inferencer
     tensorrt_inferencer
-    ${OpenCV_LIBS}
-    ${TENSORRT_LIBRARY}
-    ${TENSORRT_PLUGIN_LIBRARY}
-    CUDA::cudart
     gtest_main)
 
 endif()
