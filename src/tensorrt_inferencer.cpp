@@ -7,6 +7,7 @@
 
 // local header files: This project includes local header files.
 #include "tensorrt_inferencer/config.hpp"
+#include "tensorrt_inferencer/exception.hpp"
 #include "tensorrt_inferencer/tensorrt_inferencer.hpp"
 
 
@@ -226,7 +227,7 @@ std::vector<float> TensorRTInferencer::infer(const cv::Mat & image)
   cudaStream_t stream = get_next_stream();
 
   // Preprocess directly into pinned memory
-  preprocess_image_optimized(image, buffers_.pinned_input);
+  preprocess_image(image, buffers_.pinned_input);
 
   // Async copy to GPU
   CUDA_CHECK(cudaMemcpyAsync(buffers_.device_input, buffers_.pinned_input,
@@ -316,7 +317,7 @@ cudaStream_t TensorRTInferencer::get_next_stream() const
   return stream;
 }
 
-void TensorRTInferencer::preprocess_image_optimized(
+void TensorRTInferencer::preprocess_image(
   const cv::Mat & image, float * output) const
 {
   cv::Mat img_resized;

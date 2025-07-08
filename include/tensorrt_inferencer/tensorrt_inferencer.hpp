@@ -2,14 +2,10 @@
 
 // C++ standard library version: This project uses the C++17 standard library.
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <vector>
 #include <mutex>
 #include <limits>
-
-// CUDA includes
-#include <cuda_runtime.h>
 
 // TensorRT includes
 #include <NvInfer.h>
@@ -20,32 +16,7 @@
 
 namespace tensorrt_inferencer
 {
-
-// Custom exception classes
-class TensorRTException : public std::runtime_error
-{
-public:
-  explicit TensorRTException(const std::string & message)
-  : std::runtime_error("TensorRT Error: " + message) {}
-};
-
-class CudaException : public std::runtime_error
-{
-public:
-  explicit CudaException(const std::string & message, cudaError_t error)
-  : std::runtime_error("CUDA Error: " + message + " (" + cudaGetErrorString(error) + ")") {}
-};
-
-// CUDA error checking macro
-#define CUDA_CHECK(call) \
-  do { \
-    cudaError_t error = call; \
-    if (error != cudaSuccess) { \
-      throw CudaException(#call, error); \
-    } \
-  } while(0)
-
-  // TensorRT Logger with configurable severity
+// TensorRT Logger with configurable severity
 class Logger : public nvinfer1::ILogger
 {
 public:
@@ -160,7 +131,7 @@ private:
   // Helper methods
   std::vector<uint8_t> load_engine_file(const std::string & engine_path) const;
   cudaStream_t get_next_stream() const;
-  void preprocess_image_optimized(const cv::Mat & image, float * output) const;
+  void preprocess_image(const cv::Mat & image, float * output) const;
 
   // Validation methods
   void validate_image(const cv::Mat & image) const;
