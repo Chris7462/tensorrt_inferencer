@@ -222,8 +222,6 @@ void TensorRTInferencer::cleanup()
 
 std::vector<float> TensorRTInferencer::infer(const cv::Mat & image)
 {
-  validate_image(image);
-
   cudaStream_t stream = get_next_stream();
 
   // Preprocess directly into pinned memory
@@ -297,16 +295,6 @@ cv::Mat TensorRTInferencer::create_overlay(
   cv::addWeighted(original, 1.0f - alpha, seg_resized, alpha, 0, overlay);
 
   return overlay;
-}
-
-void TensorRTInferencer::validate_image(const cv::Mat & image) const
-{
-  if (image.empty()) {
-    throw std::invalid_argument("Input image is empty");
-  }
-  if (image.type() != CV_8UC3) {
-    throw std::invalid_argument("Input image must be CV_8UC3 format");
-  }
 }
 
 cudaStream_t TensorRTInferencer::get_next_stream() const

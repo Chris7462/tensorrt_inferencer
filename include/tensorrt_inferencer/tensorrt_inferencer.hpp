@@ -133,9 +133,6 @@ private:
   cudaStream_t get_next_stream() const;
   void preprocess_image(const cv::Mat & image, float * output) const;
 
-  // Validation methods
-  void validate_image(const cv::Mat & image) const;
-
 private:
   // Configuration
   Config config_;

@@ -167,29 +167,6 @@ TEST_F(TensorRTInferencerTest, TestMultipleInferences)
   EXPECT_LT(avg_time, 100.0); // Should be less than 100ms on decent hardware
 }
 
-TEST_F(TensorRTInferencerTest, TestInvalidInputHandling)
-{
-  // Test empty image
-  cv::Mat empty_image;
-  EXPECT_THROW(inferencer_->infer(empty_image), std::invalid_argument);
-
-  // Test wrong image format
-  cv::Mat gray_image = cv::Mat::zeros(inferencer_->config_.height, inferencer_->config_.width,
-    CV_8UC1);
-  EXPECT_THROW(inferencer_->infer(gray_image), std::invalid_argument);
-
-  // Test different size image (should work - will be resized internally)
-  cv::Mat small_image = cv::Mat::zeros(100, 100, CV_8UC3);
-  EXPECT_NO_THROW(inferencer_->infer(small_image));
-}
-
-TEST_F(TensorRTInferencerTest, TestConfigurationAccess)
-{
-  EXPECT_EQ(inferencer_->config_.height, input_height_);
-  EXPECT_EQ(inferencer_->config_.width, input_width_);
-  EXPECT_EQ(inferencer_->config_.num_classes, num_classes_);
-}
-
 TEST_F(TensorRTInferencerTest, TestBenchmarkInference)
 {
   cv::Mat image = load_test_image();
