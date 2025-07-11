@@ -4,6 +4,9 @@
 
 // OpenCV includes
 #include <opencv2/imgproc.hpp>
+#include <opencv2/cudaarithm.hpp>
+#include <opencv2/cudawarping.hpp>
+#include <opencv2/core/cuda_stream_accessor.hpp>
 
 // local header files: This project includes local header files.
 #include "tensorrt_inferencer/config.hpp"
@@ -225,7 +228,11 @@ std::vector<float> TensorRTInferencer::infer(const cv::Mat & image)
   cudaStream_t stream = get_next_stream();
 
   // Preprocess directly into pinned memory
+  auto start = std::chrono::high_resolution_clock::now();
   preprocess_image(image, buffers_.pinned_input);
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration<double, std::milli>(end - start);
+  std::cout << "CPU preprocess time: " << duration.count() << "ms" << std::endl;
 
   // Async copy to GPU
   CUDA_CHECK(cudaMemcpyAsync(buffers_.device_input, buffers_.pinned_input,
@@ -234,6 +241,37 @@ std::vector<float> TensorRTInferencer::infer(const cv::Mat & image)
   // Run inference
   if (!context_->enqueueV3(stream)) {
     throw TensorRTException("Failed to enqueue inference");
+  }
+
+  // Async copy result back
+  CUDA_CHECK(cudaMemcpyAsync(buffers_.pinned_output, buffers_.device_output,
+    output_size_, cudaMemcpyDeviceToHost, stream));
+
+  // Wait for completion
+  CUDA_CHECK(cudaStreamSynchronize(stream));
+
+  // Convert to vector
+  size_t num_elements = output_size_ / sizeof(float);
+  std::vector<float> result(buffers_.pinned_output,
+    buffers_.pinned_output + num_elements);
+
+  return result;
+}
+
+std::vector<float> TensorRTInferencer::infer_gpu(const cv::cuda::GpuMat& gpu_image)
+{
+  cudaStream_t stream = get_next_stream();
+
+  auto start = std::chrono::high_resolution_clock::now();
+  // CUDA preprocessing - writes directly to device memory
+  preprocess_image_cuda(gpu_image, static_cast<float*>(buffers_.device_input), stream);
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration<double, std::milli>(end - start);
+  std::cout << "GPU preprocess time: " << duration.count() << "ms" << std::endl;
+
+  // Run inference
+  if (!context_->enqueueV3(stream)) {
+      throw TensorRTException("Failed to enqueue inference");
   }
 
   // Async copy result back
@@ -324,6 +362,59 @@ void TensorRTInferencer::preprocess_image(
     std::memcpy(output + c * config_.height * config_.width,
       normalized.data, config_.height * config_.width * sizeof(float));
   }
+}
+
+// Host function implementations using OpenCV CUDA
+void TensorRTInferencer::initialize_cuda_preprocessing_buffers()
+{
+  // Initialize reusable GPU buffers
+  gpu_resized_image_.create(config_.height, config_.width, CV_8UC3);
+  gpu_float_image_.create(config_.height, config_.width, CV_32FC3);
+  gpu_channels_.resize(3);
+  for (int i = 0; i < 3; ++i) {
+    gpu_channels_[i].create(config_.height, config_.width, CV_32FC1);
+  }
+}
+
+void TensorRTInferencer::preprocess_image_cuda(
+  const cv::cuda::GpuMat& gpu_image, float* output, cudaStream_t stream)
+{
+  // Method 1: Using OpenCV CUDA functions (easier, good performance)
+  cv::cuda::Stream cv_stream = cv::cuda::StreamAccessor::wrapStream(stream);
+
+  // 1. Resize image
+  cv::cuda::resize(gpu_image, gpu_resized_image_,
+    cv::Size(config_.width, config_.height),
+    0, 0, cv::INTER_LINEAR, cv_stream);
+
+  // 2. Convert to float [0,1]
+  gpu_resized_image_.convertTo(gpu_float_image_, CV_32FC3, 1.0f/255.0f, cv_stream);
+
+  // 3. Split channels
+  cv::cuda::split(gpu_float_image_, gpu_channels_, cv_stream);
+
+  // 4. Normalize each channel and copy to output buffer
+  for (int c = 0; c < 3; ++c) {
+    // Apply normalization: (pixel - mean) / std
+    cv::cuda::GpuMat normalized_channel;
+    cv::cuda::subtract(gpu_channels_[c], cv::Scalar(config::MEAN[c]), normalized_channel, cv::noArray(), -1, cv_stream);
+    cv::cuda::divide(normalized_channel, cv::Scalar(config::STDDEV[c]), normalized_channel, 1.0, -1, cv_stream);
+
+    // Copy to output buffer (CHW format)
+    //size_t channel_size = config_.height * config_.width * sizeof(float);
+    CUDA_CHECK(cudaMemcpy2DAsync(
+      output + c * config_.height * config_.width,  // dst
+      config_.width * sizeof(float),                // dst pitch
+      normalized_channel.ptr<float>(),              // src
+      normalized_channel.step,                      // src pitch
+      config_.width * sizeof(float),                // width in bytes
+      config_.height,                               // height
+      cudaMemcpyDeviceToDevice,
+      stream));
+  }
+
+  // Synchronize stream to ensure all operations complete
+  cv_stream.waitForCompletion();
 }
 
 } // namespace tensorrt_inferencer

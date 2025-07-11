@@ -8,6 +8,7 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 //#include <opencv2/highgui.hpp>
+#include <opencv2/core/cuda_stream_accessor.hpp>
 
 // Google Test includes
 #include <gtest/gtest.h>
@@ -131,6 +132,42 @@ TEST_F(TensorRTInferencerTest, TestSegmentationDecoding)
   cv::destroyAllWindows();
   */
 }
+
+TEST_F(TensorRTInferencerTest, TestGPUSegmentationDecoding)
+{
+  cv::Mat image = load_test_image();
+  cv::cuda::GpuMat gpu_image;
+  cv::cuda::Stream cv_stream = cv::cuda::StreamAccessor::wrapStream(inferencer_->get_next_stream());
+    gpu_image.upload(image, cv_stream);
+
+  auto output = inferencer_->infer_gpu(gpu_image);
+
+  // Decode segmentation
+  cv::Mat segmentation = inferencer_->decode_segmentation(output);
+
+  EXPECT_EQ(segmentation.rows, inferencer_->config_.height);
+  EXPECT_EQ(segmentation.cols, inferencer_->config_.width);
+  EXPECT_EQ(segmentation.type(), CV_8UC3);
+
+  // Create overlay
+  cv::Mat overlay = inferencer_->create_overlay(image, segmentation, 0.5f);
+
+  EXPECT_EQ(overlay.size(), image.size());
+  EXPECT_EQ(overlay.type(), CV_8UC3);
+
+  // Save results for visual inspection
+  save_results(image, segmentation, overlay, "_gpu");
+
+  // Optional: Display results (comment out for automated testing)
+  /*
+  cv::imshow("Original", image);
+  cv::imshow("Segmentation", segmentation);
+  cv::imshow("Overlay", overlay);
+  cv::waitKey(0);
+  cv::destroyAllWindows();
+  */
+}
+
 
 TEST_F(TensorRTInferencerTest, TestMultipleInferences)
 {

@@ -12,6 +12,7 @@
 
 // OpenCV includes
 #include <opencv2/core.hpp>
+#include <opencv2/cudacodec.hpp>
 
 
 namespace tensorrt_inferencer
@@ -110,6 +111,7 @@ public:
 
   // Main inference method
   std::vector<float> infer(const cv::Mat & image);
+  std::vector<float> infer_gpu(const cv::cuda::GpuMat & gpu_image);
 
     // Utility functions
   cv::Mat decode_segmentation(const std::vector<float> & output_data) const;
@@ -125,6 +127,9 @@ private:
   void initialize_streams();
   void warmup();
 
+  // Initialize CUDA preprocessing buffers
+  void initialize_cuda_preprocessing_buffers();
+
   // Memory management
   void cleanup();
 
@@ -132,6 +137,8 @@ private:
   std::vector<uint8_t> load_engine_file(const std::string & engine_path) const;
   cudaStream_t get_next_stream() const;
   void preprocess_image(const cv::Mat & image, float * output) const;
+  // CUDA preprocessing method (now takes GpuMat)
+  void preprocess_image_cuda(const cv::cuda::GpuMat& gpu_image, float* output, cudaStream_t stream);
 
 private:
   // Configuration
@@ -161,6 +168,11 @@ private:
     : pinned_input(nullptr), pinned_output(nullptr),
       device_input(nullptr), device_output(nullptr) {}
   } buffers_;
+
+  // Add these members for CUDA preprocessing
+  cv::cuda::GpuMat gpu_resized_image_;    // Reusable buffer for resized image
+  cv::cuda::GpuMat gpu_float_image_;      // Reusable buffer for float conversion
+  std::vector<cv::cuda::GpuMat> gpu_channels_; // Reusable buffers for split channels
 
   // CUDA streams for pipelining
   std::vector<cudaStream_t> streams_;
