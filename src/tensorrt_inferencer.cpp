@@ -9,6 +9,7 @@
 #include "tensorrt_inferencer/config.hpp"
 #include "tensorrt_inferencer/exception.hpp"
 #include "tensorrt_inferencer/tensorrt_inferencer.hpp"
+#include "tensorrt_inferencer/normalize_kernel.hpp"
 
 
 namespace tensorrt_inferencer
@@ -251,6 +252,33 @@ std::vector<float> TensorRTInferencer::infer(const cv::Mat & image)
   return result;
 }
 
+std::vector<float> TensorRTInferencer::infer_gpu(const cv::Mat & image)
+{
+  cudaStream_t stream = get_next_stream();
+
+  // Preprocess directly into pinned memory
+  preprocess_image_cuda(image, static_cast<float *>(buffers_.device_input), stream);
+
+  // Run inference
+  if (!context_->enqueueV3(stream)) {
+    throw TensorRTException("Failed to enqueue inference");
+  }
+
+  // Async copy result back
+  CUDA_CHECK(cudaMemcpyAsync(buffers_.pinned_output, buffers_.device_output,
+    output_size_, cudaMemcpyDeviceToHost, stream));
+
+  // Wait for completion
+  CUDA_CHECK(cudaStreamSynchronize(stream));
+
+  // Convert to vector
+  size_t num_elements = output_size_ / sizeof(float);
+  std::vector<float> result(buffers_.pinned_output,
+    buffers_.pinned_output + num_elements);
+
+  return result;
+}
+
 cv::Mat TensorRTInferencer::decode_segmentation(const std::vector<float> & output_data) const
 {
   cv::Mat seg_map(config_.height, config_.width, CV_8UC3);
@@ -324,6 +352,49 @@ void TensorRTInferencer::preprocess_image(
     std::memcpy(output + c * config_.height * config_.width,
       normalized.data, config_.height * config_.width * sizeof(float));
   }
+}
+
+// Much simpler CUDA preprocessing - follows the same pattern as CPU version
+void TensorRTInferencer::preprocess_image_cuda(
+  const cv::Mat & image, float * output, cudaStream_t stream) const
+{
+  // Step 1: Resize image using OpenCV (on CPU)
+  cv::Mat img_resized;
+  cv::resize(image, img_resized, cv::Size(config_.width, config_.height));
+
+  // Step 2: Convert to float (on CPU)
+  img_resized.convertTo(img_resized, CV_32FC3, 1.0f / 255.0f);
+
+  // Step 3: Upload resized float image to GPU
+  size_t image_size = img_resized.rows * img_resized.cols * img_resized.channels() * sizeof(float);
+  float *gpu_image_data;
+  CUDA_CHECK(cudaMalloc(&gpu_image_data, image_size));
+  CUDA_CHECK(cudaMemcpyAsync(gpu_image_data, img_resized.data, image_size,
+                             cudaMemcpyHostToDevice, stream));
+
+  // Step 4: Copy normalization constants to GPU
+  float h_mean[3] = {config::MEAN[0], config::MEAN[1], config::MEAN[2]};
+  float h_std[3] = {config::STDDEV[0], config::STDDEV[1], config::STDDEV[2]};
+  float *d_mean, *d_std;
+  CUDA_CHECK(cudaMalloc(&d_mean, 3 * sizeof(float)));
+  CUDA_CHECK(cudaMalloc(&d_std, 3 * sizeof(float)));
+  CUDA_CHECK(cudaMemcpyAsync(d_mean, h_mean, 3 * sizeof(float),
+    cudaMemcpyHostToDevice, stream));
+  CUDA_CHECK(cudaMemcpyAsync(d_std, h_std, 3 * sizeof(float),
+    cudaMemcpyHostToDevice, stream));
+
+  // Step 5: Launch simple normalization kernel
+  launch_normalize_kernel(
+    gpu_image_data,
+    output,
+    config_.width, config_.height,
+    d_mean, d_std,
+    stream);
+
+  // Step 6: Cleanup
+  CUDA_CHECK(cudaFree(gpu_image_data));
+  CUDA_CHECK(cudaFree(d_mean));
+  CUDA_CHECK(cudaFree(d_std));
 }
 
 } // namespace tensorrt_inferencer

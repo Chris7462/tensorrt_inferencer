@@ -47,7 +47,8 @@ endif()
 
 # Define the library target
 add_library(tensorrt_inferencer STATIC
-  src/tensorrt_inferencer.cpp)
+  src/tensorrt_inferencer.cpp
+  src/normalize_kernel.cu)
 
 # Specify include directories for the target
 target_include_directories(tensorrt_inferencer

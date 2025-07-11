@@ -110,6 +110,7 @@ public:
 
   // Main inference method
   std::vector<float> infer(const cv::Mat & image);
+  std::vector<float> infer_gpu(const cv::Mat & image);
 
     // Utility functions
   cv::Mat decode_segmentation(const std::vector<float> & output_data) const;
@@ -132,6 +133,7 @@ private:
   std::vector<uint8_t> load_engine_file(const std::string & engine_path) const;
   cudaStream_t get_next_stream() const;
   void preprocess_image(const cv::Mat & image, float * output) const;
+  void preprocess_image_cuda(const cv::Mat & image, float * output, cudaStream_t stream) const;
 
 private:
   // Configuration
