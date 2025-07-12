@@ -11,7 +11,7 @@ find_package(CUDAToolkit REQUIRED)
 find_package(OpenCV REQUIRED)
 
 # Enable CUDA separable compilation
-set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+# set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)  # This is global setting. Should have set property on the target instead
 
 # Auto-detect CUDA architecture if not specified
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
@@ -48,7 +48,8 @@ endif()
 # Define the library target
 add_library(tensorrt_inferencer STATIC
   src/tensorrt_inferencer.cpp
-  src/normalize_kernel.cu)
+  src/normalize_kernel.cu
+  src/decode_and_colorize_kernel.cu)
 
 # Specify include directories for the target
 target_include_directories(tensorrt_inferencer

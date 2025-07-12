@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cuda_runtime.h>
-#include <cstdint>
+
 
 namespace tensorrt_inferencer
 {

@@ -1,6 +1,7 @@
+#include <cuda_runtime.h>
+
 #include "tensorrt_inferencer/exception.hpp"
 #include "tensorrt_inferencer/config.hpp"
-#include <cuda_runtime.h>
 
 
 namespace tensorrt_inferencer
