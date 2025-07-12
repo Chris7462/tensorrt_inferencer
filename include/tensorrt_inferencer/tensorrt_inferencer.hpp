@@ -33,10 +33,10 @@ private:
 class CudaMemoryManager
 {
 public:
-  static void * allocate_device(size_t size);
-  static void * allocate_host_pinned(size_t size);
-  static void free_device(void * ptr);
-  static void free_host_pinned(void * ptr);
+  static float * allocate_device(size_t size);
+  static float * allocate_host_pinned(size_t size);
+  static void free_device(float * ptr);
+  static void free_host_pinned(float * ptr);
 };
 
 // Optimized TensorRT inference class
@@ -156,16 +156,20 @@ private:
   {
     float * pinned_input;
     float * pinned_output;
-    void * device_input;
-    void * device_output;
+    float * device_input;
+    float * device_output;
+    float * device_mean;
+    float * device_std;
 
     MemoryBuffers()
     : pinned_input(nullptr), pinned_output(nullptr),
-      device_input(nullptr), device_output(nullptr) {}
+      device_input(nullptr), device_output(nullptr),
+      device_mean(nullptr), device_std(nullptr) {}
   } buffers_;
 
   // CUDA streams for pipelining
   std::vector<cudaStream_t> streams_;
+
   // Stream management
   mutable std::mutex stream_mutex_;
   mutable size_t current_stream_ = 0;
