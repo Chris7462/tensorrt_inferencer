@@ -29,16 +29,6 @@ private:
   Severity min_severity_;
 };
 
-// Memory management helper
-class CudaMemoryManager
-{
-public:
-  static float * allocate_device(size_t size);
-  static float * allocate_host_pinned(size_t size);
-  static void free_device(float * ptr);
-  static void free_host_pinned(float * ptr);
-};
-
 // Optimized TensorRT inference class
 class TensorRTInferencer
 {
@@ -127,7 +117,7 @@ private:
   void warmup();
 
   // Memory management
-  void cleanup();
+  void cleanup() noexcept;
 
   // Helper methods
   std::vector<uint8_t> load_engine_file(const std::string & engine_path) const;
@@ -158,12 +148,14 @@ private:
     float * pinned_output;
     float * device_input;
     float * device_output;
+    float * device_img_resized;
     float * device_mean;
     float * device_std;
 
     MemoryBuffers()
     : pinned_input(nullptr), pinned_output(nullptr),
       device_input(nullptr), device_output(nullptr),
+      device_img_resized(nullptr),
       device_mean(nullptr), device_std(nullptr) {}
   } buffers_;
 

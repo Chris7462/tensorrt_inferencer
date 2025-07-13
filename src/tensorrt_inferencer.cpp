@@ -32,37 +32,6 @@ void Logger::log(Severity severity, const char * msg) noexcept
   }
 }
 
-// CudaMemoryManager implementation
-float * CudaMemoryManager::allocate_device(size_t size)
-{
-  float * ptr;
-  CUDA_CHECK(cudaMalloc(&ptr, size));
-  return ptr;
-}
-
-float * CudaMemoryManager::allocate_host_pinned(size_t size)
-{
-  float * ptr;
-  CUDA_CHECK(cudaMallocHost(&ptr, size));
-  return ptr;
-}
-
-void CudaMemoryManager::free_device(float * ptr)
-{
-  if (ptr) {
-    CUDA_CHECK(cudaFree(ptr));
-    ptr = nullptr;
-  }
-}
-
-void CudaMemoryManager::free_host_pinned(float * ptr)
-{
-  if (ptr) {
-    CUDA_CHECK(cudaFreeHost(ptr));
-    ptr = nullptr;
-  }
-}
-
 // TensorRTInferencer implementation
 TensorRTInferencer::TensorRTInferencer(const std::string & engine_path, const Config & config)
 : config_(config)
@@ -166,16 +135,19 @@ void TensorRTInferencer::initialize_memory()
   output_size_ = 1 * config_.num_classes * config_.height * config_.width * sizeof(float);
 
   // Allocate pinned host memory
-  buffers_.pinned_input = CudaMemoryManager::allocate_host_pinned(input_size_);
-  buffers_.pinned_output = CudaMemoryManager::allocate_host_pinned(output_size_);
+  CUDA_CHECK(cudaMallocHost(&buffers_.pinned_input, input_size_));
+  CUDA_CHECK(cudaMallocHost(&buffers_.pinned_output, output_size_));
 
   // Allocate device memory
-  buffers_.device_input = CudaMemoryManager::allocate_device(input_size_);
-  buffers_.device_output = CudaMemoryManager::allocate_device(output_size_);
+  CUDA_CHECK(cudaMalloc(&buffers_.device_input, input_size_));
+  CUDA_CHECK(cudaMalloc(&buffers_.device_output, output_size_));
+
+  // Allocate device memory for image processing
+  CUDA_CHECK(cudaMalloc(&buffers_.device_img_resized, input_size_));
 
   // Allocate and initialize GPU memory for normalization constants
-  buffers_.device_mean = CudaMemoryManager::allocate_device(3 * sizeof(float));
-  buffers_.device_std = CudaMemoryManager::allocate_device(3 * sizeof(float));
+  CUDA_CHECK(cudaMalloc(&buffers_.device_mean, 3 * sizeof(float)));
+  CUDA_CHECK(cudaMalloc(&buffers_.device_std, 3 * sizeof(float)));
 
   // Copy mean and std values to GPU (one-time initialization)
   float h_mean[3] = {config::MEAN[0], config::MEAN[1], config::MEAN[2]};
@@ -218,22 +190,45 @@ void TensorRTInferencer::warmup()
   std::cout << "Engine warmed up with " << config_.warmup_iterations << " iterations" << std::endl;
 }
 
-void TensorRTInferencer::cleanup()
+void TensorRTInferencer::cleanup() noexcept
 {
+  // Helper lambda for safe CUDA cleanup (no exceptions)
+  auto cuda_free = [](void * ptr, auto free_func, const char * type) {
+      if (ptr) {
+        cudaError_t error = free_func(ptr);
+        if (error != cudaSuccess) {
+          std::cerr << "Warning: Failed to free " << type << " memory: "
+                    << cudaGetErrorString(error) << std::endl;
+        }
+      }
+      // if (buffers_.pinned_input) {
+      //   CUDA_CHECK(cudaFreeHost(buffers_.pinned_input));
+      // }
+    };
+
   // Free pinned host memory
-  CudaMemoryManager::free_host_pinned(buffers_.pinned_input);
-  CudaMemoryManager::free_host_pinned(buffers_.pinned_output);
+  cuda_free(buffers_.pinned_input, cudaFreeHost, "pinned host");
+  cuda_free(buffers_.pinned_output, cudaFreeHost, "pinned host");
 
   // Free device memory
-  CudaMemoryManager::free_device(buffers_.device_input);
-  CudaMemoryManager::free_device(buffers_.device_output);
-  CudaMemoryManager::free_device(buffers_.device_mean);
-  CudaMemoryManager::free_device(buffers_.device_std);
+  cuda_free(buffers_.device_input, cudaFree, "device");
+  cuda_free(buffers_.device_output, cudaFree, "device");
+  cuda_free(buffers_.device_img_resized, cudaFree, "device");
+  cuda_free(buffers_.device_mean, cudaFree, "device");
+  cuda_free(buffers_.device_std, cudaFree, "device");
 
-  // Destroy streams
+  // Reset all pointers to nullptr (good practice)
+  buffers_ = MemoryBuffers{};
+
+  // Destroy streams safely
   for (auto & stream : streams_) {
     if (stream) {
-      cudaStreamDestroy(stream);
+      cudaError_t error = cudaStreamDestroy(stream);
+      if (error != cudaSuccess) {
+        std::cerr << "Warning: Failed to destroy CUDA stream: "
+                  << cudaGetErrorString(error) << std::endl;
+      }
+      stream = nullptr;  // Mark as destroyed
     }
   }
   streams_.clear();
@@ -384,21 +379,16 @@ void TensorRTInferencer::preprocess_image_cuda(
   img_resized.convertTo(img_resized, CV_32FC3, 1.0f / 255.0f);
 
   // Step 3: Upload resized float image to GPU
-  size_t image_size = img_resized.rows * img_resized.cols * img_resized.channels() * sizeof(float);
-  float * gpu_image_data = CudaMemoryManager::allocate_device(image_size);
-  CUDA_CHECK(cudaMemcpyAsync(gpu_image_data, img_resized.data,
-    image_size, cudaMemcpyHostToDevice, stream));
+  CUDA_CHECK(cudaMemcpyAsync(buffers_.device_img_resized, img_resized.data,
+    input_size_, cudaMemcpyHostToDevice, stream));
 
   // Step 4: Launch simple normalization kernel
   launch_normalize_kernel(
-    gpu_image_data,
+    buffers_.device_img_resized,
     output,
     config_.width, config_.height,
     buffers_.device_mean, buffers_.device_std,
     stream);
-
-  // Step 5: Cleanup temporary image data
-  CudaMemoryManager::free_device(gpu_image_data);
 }
 
 } // namespace tensorrt_inferencer
