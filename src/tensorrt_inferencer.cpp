@@ -143,17 +143,7 @@ void TensorRTInferencer::initialize_memory()
   // Allocate device memory
   CUDA_CHECK(cudaMalloc(&buffers_.device_input, input_size_));
   CUDA_CHECK(cudaMalloc(&buffers_.device_output, output_size_));
-
-  // Allocate device memory for image processing
-  CUDA_CHECK(cudaMalloc(&buffers_.device_img_resized, input_size_));
-
-  // Allocate and initialize GPU colormap (one-time initialization)
-  std::vector<uchar3> cmap_vec;
-  for (const auto & rgb : config::PASCAL_VOC_COLORMAP) {
-    cmap_vec.push_back({rgb[2], rgb[1], rgb[0]});  // Convert RGB to BGR for OpenCV
-  }
-
-  // Allocate GPU buffer for decoded mask (one-time initialization)
+  CUDA_CHECK(cudaMalloc(&buffers_.device_temp_buffer, input_size_));
   CUDA_CHECK(cudaMalloc(&buffers_.device_decoded_mask, mask_bytes_));
 
   // Set tensor addresses
@@ -183,10 +173,25 @@ void TensorRTInferencer::initialize_constants()
 
 void TensorRTInferencer::warmup()
 {
-  cv::Mat dummy_image = cv::Mat::zeros(config_.height, config_.width, CV_8UC3);
+  CUDA_CHECK(cudaMemsetAsync(buffers_.device_input, 0, input_size_, stream_));
 
   for (int i = 0; i < config_.warmup_iterations; ++i) {
-    infer(dummy_image);
+    // Run inference pipeline once to initialize CUDA kernels
+    if (!context_->enqueueV3(stream_)) {
+      throw TensorRTException("Failed to enqueue warmup inference");
+    }
+
+    // Launch decode kernel to warm up all GPU kernels
+    launch_decode_and_colorize_kernel(
+        buffers_.device_output,
+        buffers_.device_decoded_mask,
+        config_.width, config_.height,
+        config_.num_classes,
+        stream_
+    );
+
+    // Synchronize to ensure completion
+    CUDA_CHECK(cudaStreamSynchronize(stream_));
   }
 
   std::cout << "Engine warmed up with " << config_.warmup_iterations << " iterations" << std::endl;
@@ -212,8 +217,8 @@ void TensorRTInferencer::cleanup() noexcept
     cudaFree(buffers_.device_output);
   }
 
-  if (buffers_.device_img_resized) {
-    cudaFree(buffers_.device_img_resized);
+  if (buffers_.device_temp_buffer) {
+    cudaFree(buffers_.device_temp_buffer);
   }
 
   if (buffers_.device_decoded_mask) {
@@ -283,19 +288,19 @@ void TensorRTInferencer::preprocess_image(
 {
   // Step 1: Resize image using OpenCV (on CPU)
   // Create cv::Mat that directly uses pinned memory
-  cv::Mat img_resized(config_.height, config_.width, CV_32FC3, buffers_.pinned_input);
-  cv::resize(image, img_resized, cv::Size(config_.width, config_.height));
+  cv::Mat img_wrapper(config_.height, config_.width, CV_32FC3, buffers_.pinned_input);
+  cv::resize(image, img_wrapper, cv::Size(config_.width, config_.height));
 
   // Step 2: Convert to float (on CPU)
-  img_resized.convertTo(img_resized, CV_32FC3, 1.0f / 255.0f);
+  img_wrapper.convertTo(img_wrapper, CV_32FC3, 1.0f / 255.0f);
 
   // Step 3: Upload resized float image to GPU
-  CUDA_CHECK(cudaMemcpyAsync(buffers_.device_img_resized, img_resized.data,
+  CUDA_CHECK(cudaMemcpyAsync(buffers_.device_temp_buffer, img_wrapper.data,
     input_size_, cudaMemcpyHostToDevice, stream));
 
   // Step 4: Launch simple normalization kernel
   launch_normalize_kernel(
-    buffers_.device_img_resized,
+    buffers_.device_temp_buffer,
     output,
     config_.width, config_.height,
     stream);

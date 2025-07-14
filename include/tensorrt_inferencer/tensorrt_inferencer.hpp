@@ -139,13 +139,13 @@ private:
     uchar3 * pinned_output;
     float * device_input; // TensorRT engine input
     float * device_output;  // TensorRT engine output
-    float * device_img_resized; // For img proprecessing
+    float * device_temp_buffer; // For img proprecessing
     uchar3 * device_decoded_mask; // Segmentation output
 
     MemoryBuffers()
     : pinned_input(nullptr), pinned_output(nullptr),
       device_input(nullptr), device_output(nullptr),
-      device_img_resized(nullptr), device_decoded_mask(nullptr) {}  // Initialize to nullptr
+      device_temp_buffer(nullptr), device_decoded_mask(nullptr) {}  // Initialize to nullptr
   } buffers_;
 
   // CUDA streams for pipelining

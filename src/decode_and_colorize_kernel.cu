@@ -12,7 +12,7 @@ __constant__ uchar3 d_colormap[21];
 // Initialize constant memory (call once during initialization)
 void initialize_colormap_constants()
 {
-  // Copy colormap
+  // Allocate and initialize GPU colormap (one-time initialization)
   uchar3 h_colormap[21];
   for (int i = 0; i < 21; ++i) {
     h_colormap[i] = {config::PASCAL_VOC_COLORMAP[i][2],
