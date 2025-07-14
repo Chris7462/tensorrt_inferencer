@@ -1,6 +1,5 @@
 #include <iostream>
 #include <fstream>
-#include <chrono>
 
 // OpenCV includes
 #include <opencv2/imgproc.hpp>
@@ -10,6 +9,7 @@
 #include "tensorrt_inferencer/exception.hpp"
 #include "tensorrt_inferencer/tensorrt_inferencer.hpp"
 #include "tensorrt_inferencer/normalize_kernel.hpp"
+#include "tensorrt_inferencer/decode_and_colorize_kernel.hpp"
 
 
 namespace tensorrt_inferencer
@@ -133,10 +133,11 @@ void TensorRTInferencer::initialize_memory()
   // Calculate memory sizes
   input_size_ = 1 * 3 * config_.height * config_.width * sizeof(float);
   output_size_ = 1 * config_.num_classes * config_.height * config_.width * sizeof(float);
+  mask_bytes_ = config_.height * config_.width * sizeof(uchar3);
 
   // Allocate pinned host memory
   CUDA_CHECK(cudaMallocHost(&buffers_.pinned_input, input_size_));
-  CUDA_CHECK(cudaMallocHost(&buffers_.pinned_output, output_size_));
+  CUDA_CHECK(cudaMallocHost(&buffers_.pinned_output, mask_bytes_));
 
   // Allocate device memory
   CUDA_CHECK(cudaMalloc(&buffers_.device_input, input_size_));
@@ -157,6 +158,19 @@ void TensorRTInferencer::initialize_memory()
     cudaMemcpyHostToDevice));
   CUDA_CHECK(cudaMemcpy(buffers_.device_std, h_std, 3 * sizeof(float),
     cudaMemcpyHostToDevice));
+
+  // Allocate and initialize GPU colormap (one-time initialization)
+  std::vector<uchar3> cmap_vec;
+  for (const auto & rgb : config::PASCAL_VOC_COLORMAP) {
+    cmap_vec.push_back({rgb[2], rgb[1], rgb[0]});  // Convert RGB to BGR for OpenCV
+  }
+
+  CUDA_CHECK(cudaMalloc(&buffers_.device_colormap, cmap_vec.size() * sizeof(uchar3)));
+  CUDA_CHECK(cudaMemcpy(buffers_.device_colormap, cmap_vec.data(),
+    cmap_vec.size() * sizeof(uchar3), cudaMemcpyHostToDevice));
+
+  // Allocate GPU buffer for decoded mask (one-time initialization)
+  CUDA_CHECK(cudaMalloc(&buffers_.device_decoded_mask, mask_bytes_));
 
   // Set tensor addresses
   if (!context_->setTensorAddress(input_name_.c_str(),
@@ -192,30 +206,43 @@ void TensorRTInferencer::warmup()
 
 void TensorRTInferencer::cleanup() noexcept
 {
-  // Helper lambda for safe CUDA cleanup (no exceptions)
-  auto cuda_free = [](void * ptr, auto free_func, const char * type) {
-      if (ptr) {
-        cudaError_t error = free_func(ptr);
-        if (error != cudaSuccess) {
-          std::cerr << "Warning: Failed to free " << type << " memory: "
-                    << cudaGetErrorString(error) << std::endl;
-        }
-      }
-      // if (buffers_.pinned_input) {
-      //   CUDA_CHECK(cudaFreeHost(buffers_.pinned_input));
-      // }
-    };
-
   // Free pinned host memory
-  cuda_free(buffers_.pinned_input, cudaFreeHost, "pinned host");
-  cuda_free(buffers_.pinned_output, cudaFreeHost, "pinned host");
+  if (buffers_.pinned_input) {
+    cudaFreeHost(buffers_.pinned_input);
+  }
+
+  if (buffers_.pinned_output) {
+    cudaFreeHost(buffers_.pinned_output);
+  }
 
   // Free device memory
-  cuda_free(buffers_.device_input, cudaFree, "device");
-  cuda_free(buffers_.device_output, cudaFree, "device");
-  cuda_free(buffers_.device_img_resized, cudaFree, "device");
-  cuda_free(buffers_.device_mean, cudaFree, "device");
-  cuda_free(buffers_.device_std, cudaFree, "device");
+  if (buffers_.device_input) {
+    cudaFree(buffers_.device_input);
+  }
+
+  if (buffers_.device_output) {
+    cudaFree(buffers_.device_output);
+  }
+
+  if (buffers_.device_img_resized) {
+    cudaFree(buffers_.device_img_resized);
+  }
+
+  if (buffers_.device_mean) {
+    cudaFree(buffers_.device_mean);
+  }
+
+  if (buffers_.device_std) {
+    cudaFree(buffers_.device_std);
+  }
+
+  if (buffers_.device_colormap) {
+    cudaFree(buffers_.device_colormap);
+  }
+
+  if (buffers_.device_decoded_mask) {
+    cudaFree(buffers_.device_decoded_mask);
+  }
 
   // Reset all pointers to nullptr (good practice)
   buffers_ = MemoryBuffers{};
@@ -223,104 +250,46 @@ void TensorRTInferencer::cleanup() noexcept
   // Destroy streams safely
   for (auto & stream : streams_) {
     if (stream) {
-      cudaError_t error = cudaStreamDestroy(stream);
-      if (error != cudaSuccess) {
-        std::cerr << "Warning: Failed to destroy CUDA stream: "
-                  << cudaGetErrorString(error) << std::endl;
-      }
+      cudaStreamDestroy(stream);
       stream = nullptr;  // Mark as destroyed
     }
   }
   streams_.clear();
 }
 
-std::vector<float> TensorRTInferencer::infer(const cv::Mat & image)
+cv::Mat TensorRTInferencer::infer(const cv::Mat & image)
 {
   cudaStream_t stream = get_next_stream();
 
-  // Preprocess directly into pinned memory
-  preprocess_image(image, buffers_.pinned_input);
-
-  // Async copy to GPU
-  CUDA_CHECK(cudaMemcpyAsync(buffers_.device_input, buffers_.pinned_input,
-    input_size_, cudaMemcpyHostToDevice, stream));
+  // Preprocess directly into GPU memory
+  preprocess_image(image, buffers_.device_input, stream);
 
   // Run inference
   if (!context_->enqueueV3(stream)) {
     throw TensorRTException("Failed to enqueue inference");
   }
 
-  // Async copy result back
-  CUDA_CHECK(cudaMemcpyAsync(buffers_.pinned_output, buffers_.device_output,
-    output_size_, cudaMemcpyDeviceToHost, stream));
+  // Launch GPU decode kernel directly on inference output
+  launch_decode_and_colorize_kernel(
+    buffers_.device_output,
+    buffers_.device_decoded_mask,
+    buffers_.device_colormap,
+    config_.width, config_.height,
+    config_.num_classes,
+    stream
+  );
+
+  // Direct async copy to pinned memory
+  CUDA_CHECK(cudaMemcpyAsync(buffers_.pinned_output, buffers_.device_decoded_mask,
+    mask_bytes_, cudaMemcpyDeviceToHost, stream));
 
   // Wait for completion
   CUDA_CHECK(cudaStreamSynchronize(stream));
 
-  // Convert to vector
-  size_t num_elements = output_size_ / sizeof(float);
-  std::vector<float> result(buffers_.pinned_output,
-    buffers_.pinned_output + num_elements);
+  // Create cv::Mat directly from pinned memory (no extra copy!)
+  cv::Mat segmentation(config_.height, config_.width, CV_8UC3, buffers_.pinned_output);
 
-  return result;
-}
-
-std::vector<float> TensorRTInferencer::infer_gpu(const cv::Mat & image)
-{
-  cudaStream_t stream = get_next_stream();
-
-  // Preprocess directly into pinned memory
-  preprocess_image_cuda(image, buffers_.device_input, stream);
-
-  // Run inference
-  if (!context_->enqueueV3(stream)) {
-    throw TensorRTException("Failed to enqueue inference");
-  }
-
-  // Async copy result back
-  CUDA_CHECK(cudaMemcpyAsync(buffers_.pinned_output, buffers_.device_output,
-    output_size_, cudaMemcpyDeviceToHost, stream));
-
-  // Wait for completion
-  CUDA_CHECK(cudaStreamSynchronize(stream));
-
-  // Convert to vector
-  size_t num_elements = output_size_ / sizeof(float);
-  std::vector<float> result(buffers_.pinned_output,
-    buffers_.pinned_output + num_elements);
-
-  return result;
-}
-
-cv::Mat TensorRTInferencer::decode_segmentation(const std::vector<float> & output_data) const
-{
-  cv::Mat seg_map(config_.height, config_.width, CV_8UC3);
-  const float * data = output_data.data();
-
-  // Optimized argmax with vectorization hints
-  for (int y = 0; y < config_.height; ++y) {
-    for (int x = 0; x < config_.width; ++x) {
-      int pixel_idx = y * config_.width + x;
-
-      // Find class with maximum probability
-      int max_class = 0;
-      float max_val = data[pixel_idx];
-
-      for (int c = 1; c < config_.num_classes; ++c) {
-        float val = data[c * config_.height * config_.width + pixel_idx];
-        if (val > max_val) {
-          max_val = val;
-          max_class = c;
-        }
-      }
-
-      // Apply colormap
-      const auto & color = config::PASCAL_VOC_COLORMAP[max_class];
-      seg_map.at<cv::Vec3b>(y, x) = cv::Vec3b(color[2], color[1], color[0]); // BGR
-    }
-  }
-
-  return seg_map;
+  return segmentation.clone(); // Clone to regular memory for return
 }
 
 cv::Mat TensorRTInferencer::create_overlay(
@@ -346,33 +315,13 @@ cudaStream_t TensorRTInferencer::get_next_stream() const
   return stream;
 }
 
-void TensorRTInferencer::preprocess_image(
-  const cv::Mat & image, float * output) const
-{
-  cv::Mat img_resized;
-  cv::resize(image, img_resized, cv::Size(config_.width, config_.height));
-
-  // Convert to float and normalize in one step
-  img_resized.convertTo(img_resized, CV_32FC3, 1.0f / 255.0f);
-
-  // Split channels
-  std::vector<cv::Mat> channels(3);
-  cv::split(img_resized, channels);
-
-  // Normalize each channel and copy to output buffer
-  for (int c = 0; c < 3; ++c) {
-    cv::Mat normalized = (channels[c] - config::MEAN[c]) / config::STDDEV[c];
-    std::memcpy(output + c * config_.height * config_.width,
-      normalized.data, config_.height * config_.width * sizeof(float));
-  }
-}
-
 // Much simpler CUDA preprocessing - follows the same pattern as CPU version
-void TensorRTInferencer::preprocess_image_cuda(
+void TensorRTInferencer::preprocess_image(
   const cv::Mat & image, float * output, cudaStream_t stream) const
 {
   // Step 1: Resize image using OpenCV (on CPU)
-  cv::Mat img_resized;
+  // Create cv::Mat that directly uses pinned memory
+  cv::Mat img_resized(config_.height, config_.width, CV_32FC3, buffers_.pinned_input);
   cv::resize(image, img_resized, cv::Size(config_.width, config_.height));
 
   // Step 2: Convert to float (on CPU)

@@ -8,14 +8,13 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 //#include <opencv2/highgui.hpp>
-#include <opencv2/cudacodec.hpp>  // Temporary
+//#include <opencv2/cudacodec.hpp>  // Temporary
 
 // Google Test includes
 #include <gtest/gtest.h>
 
 // Local includes
 #include "tensorrt_inferencer/config.hpp"
-#include "tensorrt_inferencer/decode_and_colorize_kernel.hpp"  // Temporary
 
 #define private public
 #include "tensorrt_inferencer/tensorrt_inferencer.hpp"
@@ -77,7 +76,6 @@ private:
   const std::string image_path_ = "image_000.png";
 };
 
-
 TEST_F(TensorRTInferencerTest, TestBasicInference)
 {
   cv::Mat image = load_test_image();
@@ -86,51 +84,24 @@ TEST_F(TensorRTInferencerTest, TestBasicInference)
   EXPECT_EQ(image.type(), CV_8UC3);
 
   auto start = std::chrono::high_resolution_clock::now();
-  auto output = inferencer_->infer(image);
+  cv::Mat segmentation = inferencer_->infer(image);
   auto end = std::chrono::high_resolution_clock::now();
 
   auto duration = std::chrono::duration<double, std::milli>(end - start);
-  std::cout << "Single inference time: " << duration.count() << " ms" << std::endl;
+  std::cout << "GPU infer with decode: " << duration.count() << " ms" << std::endl;
 
   // Validate output
-  size_t expected_size = inferencer_->config_.num_classes * inferencer_->config_.height *
-    inferencer_->config_.width;
-  EXPECT_EQ(output.size(), expected_size);
-
-  // Check that output contains valid probabilities
-  bool has_valid_values = std::any_of(output.begin(), output.end(),
-      [](float val) {return std::isfinite(val);});
-  EXPECT_TRUE(has_valid_values);
-}
-
-TEST_F(TensorRTInferencerTest, TestSegmentationDecoding)
-{
-  cv::Mat image = load_test_image();
-  auto start = std::chrono::high_resolution_clock::now();
-  auto output = inferencer_->infer(image);
-  auto end = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration<double, std::milli>(end - start);
-  std::cout << "CPU infer: " << duration.count() << std::endl;
-
-  // Decode segmentation
-  auto start1 = std::chrono::high_resolution_clock::now();
-  cv::Mat segmentation = inferencer_->decode_segmentation(output);
-  auto end1 = std::chrono::high_resolution_clock::now();
-  auto duration1 = std::chrono::duration<double, std::milli>(end1 - start1);
-  std::cout << "Decode time on CPU: " << duration1.count() << std::endl;
-
   EXPECT_EQ(segmentation.rows, inferencer_->config_.height);
   EXPECT_EQ(segmentation.cols, inferencer_->config_.width);
   EXPECT_EQ(segmentation.type(), CV_8UC3);
 
   // Create overlay
   cv::Mat overlay = inferencer_->create_overlay(image, segmentation, 0.5f);
-
   EXPECT_EQ(overlay.size(), image.size());
   EXPECT_EQ(overlay.type(), CV_8UC3);
 
   // Save results for visual inspection
-  save_results(image, segmentation, overlay);
+  save_results(image, segmentation, overlay, "_gpu_optimized");
 
   // Optional: Display results (comment out for automated testing)
   /*
@@ -140,100 +111,6 @@ TEST_F(TensorRTInferencerTest, TestSegmentationDecoding)
   cv::waitKey(0);
   cv::destroyAllWindows();
   */
-}
-
-TEST_F(TensorRTInferencerTest, TestGPUSegmentationDecoding)
-{
-  cv::Mat image = load_test_image();
-
-  auto start = std::chrono::high_resolution_clock::now();
-  auto output = inferencer_->infer_gpu(image);
-  auto end = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration<double, std::milli>(end - start);
-  std::cout << "GPU infer: " << duration.count() << std::endl;
-
-  // Decode segmentation
-  cv::Mat segmentation = inferencer_->decode_segmentation(output);
-
-  EXPECT_EQ(segmentation.rows, inferencer_->config_.height);
-  EXPECT_EQ(segmentation.cols, inferencer_->config_.width);
-  EXPECT_EQ(segmentation.type(), CV_8UC3);
-
-  // Create overlay
-  cv::Mat overlay = inferencer_->create_overlay(image, segmentation, 0.5f);
-
-  EXPECT_EQ(overlay.size(), image.size());
-  EXPECT_EQ(overlay.type(), CV_8UC3);
-
-  // Save results for visual inspection
-  save_results(image, segmentation, overlay, "_gpu");
-
-  // Optional: Display results (comment out for automated testing)
-  /*
-  cv::imshow("Original", image);
-  cv::imshow("Segmentation", segmentation);
-  cv::imshow("Overlay", overlay);
-  cv::waitKey(0);
-  cv::destroyAllWindows();
-  */
-}
-
-TEST_F(TensorRTInferencerTest, TestSegmentationDecodingGPU)
-{
-  cv::Mat image = load_test_image();
-  // Run inference normally (CPU vector result unused here)
-  inferencer_->infer(image);
-
-  auto start = std::chrono::high_resolution_clock::now();
-  // Allocate GPU buffer for decoded RGB mask
-  uchar3 * decoded_mask_gpu = nullptr;
-  size_t mask_bytes = input_height_ * input_width_ * sizeof(uchar3);
-  cudaMalloc(&decoded_mask_gpu, mask_bytes);
-
-  // Upload Pascal VOC colormap to GPU
-  constexpr auto & cmap = config::PASCAL_VOC_COLORMAP;
-  std::vector<uchar3> cmap_vec;
-  for (const auto & rgb : cmap) {
-    cmap_vec.push_back({rgb[2], rgb[1], rgb[0]});  // Convert to uchar3 (BGR)
-  }
-
-  uchar3 * color_map_gpu = nullptr;
-  cudaMalloc(&color_map_gpu, cmap_vec.size() * sizeof(uchar3));
-  cudaMemcpyAsync(color_map_gpu, cmap_vec.data(), cmap_vec.size() * sizeof(uchar3),
-    cudaMemcpyHostToDevice, inferencer_->get_next_stream());
-
-  // Launch GPU decode using raw GPU output from the buffers
-  tensorrt_inferencer::launch_decode_and_colorize_kernel(
-    static_cast<const float *>(inferencer_->buffers_.device_output),
-    decoded_mask_gpu,
-    color_map_gpu,
-    input_width_, input_height_,
-    num_classes_,
-    inferencer_->get_next_stream()
-  );
-
-  // Download result to CPU
-  cv::cuda::GpuMat gpu_mask(input_height_, input_width_, CV_8UC3, decoded_mask_gpu);
-  cv::Mat segmentation;
-  gpu_mask.download(segmentation);
-  auto end = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration<double, std::milli>(end - start);
-  std::cout << "Decode time on GPU: " << duration.count() << std::endl;
-
-  // Validate output
-  EXPECT_EQ(segmentation.rows, input_height_);
-  EXPECT_EQ(segmentation.cols, input_width_);
-  EXPECT_EQ(segmentation.type(), CV_8UC3);
-
-  // Create overlay
-  cv::Mat overlay = inferencer_->create_overlay(image, segmentation, 0.5f);
-  EXPECT_EQ(overlay.size(), image.size());
-
-  save_results(image, segmentation, overlay, "_gpu_decode");
-
-  // Cleanup
-  cudaFree(decoded_mask_gpu);
-  cudaFree(color_map_gpu);
 }
 
 TEST_F(TensorRTInferencerTest, TestMultipleInferences)
@@ -245,15 +122,15 @@ TEST_F(TensorRTInferencerTest, TestMultipleInferences)
 
   for (int i = 0; i < num_iterations; ++i) {
     auto start = std::chrono::high_resolution_clock::now();
-    auto output = inferencer_->infer(image);
+    auto segmentation = inferencer_->infer(image);
     auto end = std::chrono::high_resolution_clock::now();
 
     auto duration = std::chrono::duration<double, std::milli>(end - start);
     inference_times.push_back(duration.count());
 
     // Validate output consistency
-    EXPECT_EQ(output.size(),
-      inferencer_->config_.num_classes * inferencer_->config_.height * inferencer_->config_.width);
+    EXPECT_EQ(segmentation.rows, inferencer_->config_.height);
+    EXPECT_EQ(segmentation.cols, inferencer_->config_.width);
   }
 
   // Calculate statistics
@@ -327,8 +204,7 @@ TEST_F(TensorRTInferencerTest, DISABLED_TestMultipleImages)
     }
 
     try {
-      auto output = inferencer_->infer(image);
-      auto segmentation = inferencer_->decode_segmentation(output);
+      auto segmentation = inferencer_->infer(image);
       auto overlay = inferencer_->create_overlay(image, segmentation);
 
       // Save results with image-specific suffix

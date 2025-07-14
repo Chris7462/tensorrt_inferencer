@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 #include <mutex>
-#include <limits>
 
 // TensorRT includes
 #include <NvInfer.h>
@@ -99,11 +98,14 @@ public:
   TensorRTInferencer & operator=(TensorRTInferencer &&) = delete;
 
   // Main inference method
-  std::vector<float> infer(const cv::Mat & image);
-  std::vector<float> infer_gpu(const cv::Mat & image);
+  /**
+   * @brief GPU-only inference that returns decoded segmentation directly
+   * @param image Input image
+   * @return Decoded segmentation mask as cv::Mat (CV_8UC3)
+   */
+  cv::Mat infer(const cv::Mat & image);
 
-    // Utility functions
-  cv::Mat decode_segmentation(const std::vector<float> & output_data) const;
+  // Utility functions
   cv::Mat create_overlay(
     const cv::Mat & original, const cv::Mat & segmentation,
     float alpha = 0.5f) const;
@@ -122,8 +124,7 @@ private:
   // Helper methods
   std::vector<uint8_t> load_engine_file(const std::string & engine_path) const;
   cudaStream_t get_next_stream() const;
-  void preprocess_image(const cv::Mat & image, float * output) const;
-  void preprocess_image_cuda(const cv::Mat & image, float * output, cudaStream_t stream) const;
+  void preprocess_image(const cv::Mat & image, float * output, cudaStream_t stream) const;
 
 private:
   // Configuration
@@ -140,23 +141,27 @@ private:
   std::string output_name_;
   size_t input_size_;
   size_t output_size_;
+  size_t mask_bytes_;
 
   // Memory buffers
   struct MemoryBuffers
   {
     float * pinned_input;
-    float * pinned_output;
-    float * device_input;
-    float * device_output;
-    float * device_img_resized;
-    float * device_mean;
-    float * device_std;
+    uchar3 * pinned_output;
+    float * device_input; // TensorRT engine input
+    float * device_output;  // TensorRT engine output
+    float * device_img_resized; // For img proprecessing
+    float * device_mean;  // Mean for normalizaiton
+    float * device_std; // STD for normalization
+    uchar3 * device_colormap; // Colormap
+    uchar3 * device_decoded_mask; // Segmentation output
 
     MemoryBuffers()
     : pinned_input(nullptr), pinned_output(nullptr),
       device_input(nullptr), device_output(nullptr),
       device_img_resized(nullptr),
-      device_mean(nullptr), device_std(nullptr) {}
+      device_mean(nullptr), device_std(nullptr),
+      device_colormap(nullptr), device_decoded_mask(nullptr) {}  // Initialize to nullptr
   } buffers_;
 
   // CUDA streams for pipelining
