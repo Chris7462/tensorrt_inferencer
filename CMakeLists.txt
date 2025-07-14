@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.8)
 project(tensorrt_inferencer VERSION 1.0.0 LANGUAGES CXX CUDA)
 
+set(CMAKE_BUILD_TYPE Release)
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
@@ -11,7 +13,7 @@ find_package(CUDAToolkit REQUIRED)
 find_package(OpenCV REQUIRED)
 
 # Enable CUDA separable compilation
-set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+# set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)  # This is global setting. Should have set property on the target instead
 
 # Auto-detect CUDA architecture if not specified
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
@@ -47,7 +49,9 @@ endif()
 
 # Define the library target
 add_library(tensorrt_inferencer STATIC
-  src/tensorrt_inferencer.cpp)
+  src/tensorrt_inferencer.cpp
+  src/normalize_kernel.cu
+  src/decode_and_colorize_kernel.cu)
 
 # Specify include directories for the target
 target_include_directories(tensorrt_inferencer

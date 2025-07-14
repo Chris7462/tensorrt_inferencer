@@ -4,8 +4,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <mutex>
-#include <limits>
 
 // TensorRT includes
 #include <NvInfer.h>
@@ -27,16 +25,6 @@ public:
 
 private:
   Severity min_severity_;
-};
-
-// Memory management helper
-class CudaMemoryManager
-{
-public:
-  static void * allocate_device(size_t size);
-  static void * allocate_host_pinned(size_t size);
-  static void free_device(void * ptr);
-  static void free_host_pinned(void * ptr);
 };
 
 // Optimized TensorRT inference class
@@ -62,16 +50,6 @@ public:
     int num_classes;
 
     /**
-     * @brief Number of CUDA streams used for pipelined execution
-     * @details Determines how many CUDA streams are available for asynchronous inference.
-     * - When using the synchronous `infer()` method, set this to 1, as images are processed sequentially.
-     * - Increase to 2-4 streams when using `infer_async()` to:
-     *   - Enable concurrent processing of multiple images.
-     *   - Overlap preprocessing and postprocessing with inference for better performance.
-     */
-    int num_streams;
-
-    /**
      * @brief Number of warmup iterations before timing starts
      * @details This is used to ensure that the CUDA kernels and GPU resources are properly initialized
      * and cached before actual inference timing begins. This helps to avoid cold start penalties.
@@ -92,8 +70,8 @@ public:
      * @details Initializes the configuration with default values.
      */
     Config()
-    : height(374), width(1238), num_classes(21), num_streams(1),
-      warmup_iterations(2), log_level(Logger::Severity::kWARNING) {}
+    : height(374), width(1238), num_classes(21), warmup_iterations(2),
+      log_level(Logger::Severity::kWARNING) {}
   };
 
   // Constructor with configuration
@@ -109,10 +87,14 @@ public:
   TensorRTInferencer & operator=(TensorRTInferencer &&) = delete;
 
   // Main inference method
-  std::vector<float> infer(const cv::Mat & image);
+  /**
+   * @brief GPU-only inference that returns decoded segmentation directly
+   * @param image Input image
+   * @return Decoded segmentation mask as cv::Mat (CV_8UC3)
+   */
+  cv::Mat infer(const cv::Mat & image);
 
-    // Utility functions
-  cv::Mat decode_segmentation(const std::vector<float> & output_data) const;
+  // Utility functions
   cv::Mat create_overlay(
     const cv::Mat & original, const cv::Mat & segmentation,
     float alpha = 0.5f) const;
@@ -123,15 +105,15 @@ private:
   void find_tensor_names();
   void initialize_memory();
   void initialize_streams();
+  void initialize_constants();
   void warmup();
 
   // Memory management
-  void cleanup();
+  void cleanup() noexcept;
 
   // Helper methods
   std::vector<uint8_t> load_engine_file(const std::string & engine_path) const;
-  cudaStream_t get_next_stream() const;
-  void preprocess_image(const cv::Mat & image, float * output) const;
+  void preprocess_image(const cv::Mat & image, float * output, cudaStream_t stream) const;
 
 private:
   // Configuration
@@ -148,25 +130,26 @@ private:
   std::string output_name_;
   size_t input_size_;
   size_t output_size_;
+  size_t mask_bytes_;
 
   // Memory buffers
   struct MemoryBuffers
   {
     float * pinned_input;
-    float * pinned_output;
-    void * device_input;
-    void * device_output;
+    uchar3 * pinned_output;
+    float * device_input; // TensorRT engine input
+    float * device_output;  // TensorRT engine output
+    float * device_temp_buffer; // For img proprecessing
+    uchar3 * device_decoded_mask; // Segmentation output
 
     MemoryBuffers()
     : pinned_input(nullptr), pinned_output(nullptr),
-      device_input(nullptr), device_output(nullptr) {}
+      device_input(nullptr), device_output(nullptr),
+      device_temp_buffer(nullptr), device_decoded_mask(nullptr) {}  // Initialize to nullptr
   } buffers_;
 
   // CUDA streams for pipelining
-  std::vector<cudaStream_t> streams_;
-  // Stream management
-  mutable std::mutex stream_mutex_;
-  mutable size_t current_stream_ = 0;
+  cudaStream_t stream_;
 };
 
 } // namespace tensorrt_inferencer
