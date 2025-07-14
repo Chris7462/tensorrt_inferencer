@@ -1,15 +1,30 @@
 #include <cuda_runtime.h>
 
-#include "tensorrt_inferencer/exception.hpp"
+#include "tensorrt_inferencer/config.hpp"
 
 
 namespace tensorrt_inferencer
 {
 
+// Declare constant memory (visible to all kernels in this compilation unit)
+__constant__ uchar3 d_colormap[21];
+
+// Initialize constant memory (call once during initialization)
+void initialize_colormap_constants()
+{
+  // Copy colormap
+  uchar3 h_colormap[21];
+  for (int i = 0; i < 21; ++i) {
+    h_colormap[i] = {config::PASCAL_VOC_COLORMAP[i][2],
+      config::PASCAL_VOC_COLORMAP[i][1],
+      config::PASCAL_VOC_COLORMAP[i][0]};
+  }
+  cudaMemcpyToSymbol(d_colormap, h_colormap, 21 * sizeof(uchar3));
+}
+
 // decode_segmentation_gpu.cu
 __global__ void decode_and_colorize_kernel(
-  const float* input, uchar3* output, const uchar3* color_map,
-  int width, int height, int num_classes)
+  const float* input, uchar3* output, int width, int height, int num_classes)
 {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -30,12 +45,11 @@ __global__ void decode_and_colorize_kernel(
     }
   }
 
-  output[idx] = color_map[best_class];
+  output[idx] = d_colormap[best_class];
 }
 
 void launch_decode_and_colorize_kernel(
-  const float* input_gpu, uchar3* output_gpu,
-  const uchar3* color_map_gpu, int width, int height, int num_classes,
+  const float* input_gpu, uchar3* output_gpu, int width, int height, int num_classes,
   cudaStream_t stream)
 {
   dim3 blockSize(16, 16);
@@ -43,10 +57,7 @@ void launch_decode_and_colorize_kernel(
     (height + blockSize.y - 1) / blockSize.y);
 
   decode_and_colorize_kernel<<<gridSize, blockSize, 0, stream>>>(
-    input_gpu, output_gpu, color_map_gpu,
-    width, height, num_classes);
-
-  CUDA_CHECK(cudaGetLastError());
+    input_gpu, output_gpu, width, height, num_classes);
 }
 
 } // namespace tensorrt_inferencer

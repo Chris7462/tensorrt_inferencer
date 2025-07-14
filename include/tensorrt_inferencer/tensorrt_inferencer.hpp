@@ -105,6 +105,7 @@ private:
   void find_tensor_names();
   void initialize_memory();
   void initialize_streams();
+  void initialize_constants();
   void warmup();
 
   // Memory management
@@ -139,17 +140,12 @@ private:
     float * device_input; // TensorRT engine input
     float * device_output;  // TensorRT engine output
     float * device_img_resized; // For img proprecessing
-    float * device_mean;  // Mean for normalizaiton
-    float * device_std; // STD for normalization
-    uchar3 * device_colormap; // Colormap
     uchar3 * device_decoded_mask; // Segmentation output
 
     MemoryBuffers()
     : pinned_input(nullptr), pinned_output(nullptr),
       device_input(nullptr), device_output(nullptr),
-      device_img_resized(nullptr),
-      device_mean(nullptr), device_std(nullptr),
-      device_colormap(nullptr), device_decoded_mask(nullptr) {}  // Initialize to nullptr
+      device_img_resized(nullptr), device_decoded_mask(nullptr) {}  // Initialize to nullptr
   } buffers_;
 
   // CUDA streams for pipelining

@@ -5,6 +5,8 @@
 
 namespace tensorrt_inferencer
 {
+void initialize_colormap_constants();
+
 /**
  * @brief GPU accelerated segmentation decode and colorize kernel
  * @details GPU accelerated segmentation wrapper
@@ -18,8 +20,7 @@ namespace tensorrt_inferencer
  */
 
 void launch_decode_and_colorize_kernel(
-  const float * input_gpu, uchar3 * output_gpu,
-  const uchar3 * color_map_gpu, int width, int height, int num_classes,
+  const float * input_gpu, uchar3 * output_gpu, int width, int height, int num_classes,
   cudaStream_t stream);
 
 } // namespace tensorrt_inferencer

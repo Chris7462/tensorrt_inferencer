@@ -49,6 +49,7 @@ TensorRTInferencer::TensorRTInferencer(const std::string & engine_path, const Co
     // Initialize memory and streams
     initialize_memory();
     initialize_streams();
+    initialize_constants();
 
     // Warm up the engine
     warmup();
@@ -146,28 +147,11 @@ void TensorRTInferencer::initialize_memory()
   // Allocate device memory for image processing
   CUDA_CHECK(cudaMalloc(&buffers_.device_img_resized, input_size_));
 
-  // Allocate and initialize GPU memory for normalization constants
-  CUDA_CHECK(cudaMalloc(&buffers_.device_mean, 3 * sizeof(float)));
-  CUDA_CHECK(cudaMalloc(&buffers_.device_std, 3 * sizeof(float)));
-
-  // Copy mean and std values to GPU (one-time initialization)
-  float h_mean[3] = {config::MEAN[0], config::MEAN[1], config::MEAN[2]};
-  float h_std[3] = {config::STDDEV[0], config::STDDEV[1], config::STDDEV[2]};
-
-  CUDA_CHECK(cudaMemcpy(buffers_.device_mean, h_mean, 3 * sizeof(float),
-    cudaMemcpyHostToDevice));
-  CUDA_CHECK(cudaMemcpy(buffers_.device_std, h_std, 3 * sizeof(float),
-    cudaMemcpyHostToDevice));
-
   // Allocate and initialize GPU colormap (one-time initialization)
   std::vector<uchar3> cmap_vec;
   for (const auto & rgb : config::PASCAL_VOC_COLORMAP) {
     cmap_vec.push_back({rgb[2], rgb[1], rgb[0]});  // Convert RGB to BGR for OpenCV
   }
-
-  CUDA_CHECK(cudaMalloc(&buffers_.device_colormap, cmap_vec.size() * sizeof(uchar3)));
-  CUDA_CHECK(cudaMemcpy(buffers_.device_colormap, cmap_vec.data(),
-    cmap_vec.size() * sizeof(uchar3), cudaMemcpyHostToDevice));
 
   // Allocate GPU buffer for decoded mask (one-time initialization)
   CUDA_CHECK(cudaMalloc(&buffers_.device_decoded_mask, mask_bytes_));
@@ -188,6 +172,13 @@ void TensorRTInferencer::initialize_memory()
 void TensorRTInferencer::initialize_streams()
 {
   CUDA_CHECK(cudaStreamCreate(&stream_));
+}
+
+void TensorRTInferencer::initialize_constants()
+{
+  // Initialize CUDA constant memory once
+  initialize_mean_std_constants();
+  initialize_colormap_constants();
 }
 
 void TensorRTInferencer::warmup()
@@ -225,18 +216,6 @@ void TensorRTInferencer::cleanup() noexcept
     cudaFree(buffers_.device_img_resized);
   }
 
-  if (buffers_.device_mean) {
-    cudaFree(buffers_.device_mean);
-  }
-
-  if (buffers_.device_std) {
-    cudaFree(buffers_.device_std);
-  }
-
-  if (buffers_.device_colormap) {
-    cudaFree(buffers_.device_colormap);
-  }
-
   if (buffers_.device_decoded_mask) {
     cudaFree(buffers_.device_decoded_mask);
   }
@@ -265,7 +244,6 @@ cv::Mat TensorRTInferencer::infer(const cv::Mat & image)
   launch_decode_and_colorize_kernel(
     buffers_.device_output,
     buffers_.device_decoded_mask,
-    buffers_.device_colormap,
     config_.width, config_.height,
     config_.num_classes,
     stream_
@@ -320,7 +298,6 @@ void TensorRTInferencer::preprocess_image(
     buffers_.device_img_resized,
     output,
     config_.width, config_.height,
-    buffers_.device_mean, buffers_.device_std,
     stream);
 }
 

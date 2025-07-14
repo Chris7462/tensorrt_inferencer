@@ -5,14 +5,13 @@
 
 namespace tensorrt_inferencer
 {
+void initialize_mean_std_constants();
 
 // Host function wrapper for CUDA kernel
 void launch_normalize_kernel(
   const float *input_data,
   float *output_data,
   int width, int height,
-  const float *mean_values,
-  const float *std_values,
   cudaStream_t stream);
 
 } // namespace tensorrt_inferencer
