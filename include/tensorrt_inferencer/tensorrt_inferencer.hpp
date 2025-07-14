@@ -4,7 +4,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <mutex>
 
 // TensorRT includes
 #include <NvInfer.h>
@@ -51,16 +50,6 @@ public:
     int num_classes;
 
     /**
-     * @brief Number of CUDA streams used for pipelined execution
-     * @details Determines how many CUDA streams are available for asynchronous inference.
-     * - When using the synchronous `infer()` method, set this to 1, as images are processed sequentially.
-     * - Increase to 2-4 streams when using `infer_async()` to:
-     *   - Enable concurrent processing of multiple images.
-     *   - Overlap preprocessing and postprocessing with inference for better performance.
-     */
-    int num_streams;
-
-    /**
      * @brief Number of warmup iterations before timing starts
      * @details This is used to ensure that the CUDA kernels and GPU resources are properly initialized
      * and cached before actual inference timing begins. This helps to avoid cold start penalties.
@@ -81,8 +70,8 @@ public:
      * @details Initializes the configuration with default values.
      */
     Config()
-    : height(374), width(1238), num_classes(21), num_streams(1),
-      warmup_iterations(2), log_level(Logger::Severity::kWARNING) {}
+    : height(374), width(1238), num_classes(21), warmup_iterations(2),
+      log_level(Logger::Severity::kWARNING) {}
   };
 
   // Constructor with configuration
@@ -123,7 +112,6 @@ private:
 
   // Helper methods
   std::vector<uint8_t> load_engine_file(const std::string & engine_path) const;
-  cudaStream_t get_next_stream() const;
   void preprocess_image(const cv::Mat & image, float * output, cudaStream_t stream) const;
 
 private:
@@ -165,11 +153,7 @@ private:
   } buffers_;
 
   // CUDA streams for pipelining
-  std::vector<cudaStream_t> streams_;
-
-  // Stream management
-  mutable std::mutex stream_mutex_;
-  mutable size_t current_stream_ = 0;
+  cudaStream_t stream_;
 };
 
 } // namespace tensorrt_inferencer

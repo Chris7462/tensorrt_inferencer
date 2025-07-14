@@ -187,10 +187,7 @@ void TensorRTInferencer::initialize_memory()
 
 void TensorRTInferencer::initialize_streams()
 {
-  streams_.resize(config_.num_streams);
-  for (int i = 0; i < config_.num_streams; ++i) {
-    CUDA_CHECK(cudaStreamCreate(&streams_[i]));
-  }
+  CUDA_CHECK(cudaStreamCreate(&stream_));
 }
 
 void TensorRTInferencer::warmup()
@@ -248,24 +245,19 @@ void TensorRTInferencer::cleanup() noexcept
   buffers_ = MemoryBuffers{};
 
   // Destroy streams safely
-  for (auto & stream : streams_) {
-    if (stream) {
-      cudaStreamDestroy(stream);
-      stream = nullptr;  // Mark as destroyed
-    }
+  if (stream_) {
+    cudaStreamDestroy(stream_);
+    stream_ = nullptr;  // Mark as destroyed
   }
-  streams_.clear();
 }
 
 cv::Mat TensorRTInferencer::infer(const cv::Mat & image)
 {
-  cudaStream_t stream = get_next_stream();
-
   // Preprocess directly into GPU memory
-  preprocess_image(image, buffers_.device_input, stream);
+  preprocess_image(image, buffers_.device_input, stream_);
 
   // Run inference
-  if (!context_->enqueueV3(stream)) {
+  if (!context_->enqueueV3(stream_)) {
     throw TensorRTException("Failed to enqueue inference");
   }
 
@@ -276,15 +268,15 @@ cv::Mat TensorRTInferencer::infer(const cv::Mat & image)
     buffers_.device_colormap,
     config_.width, config_.height,
     config_.num_classes,
-    stream
+    stream_
   );
 
   // Direct async copy to pinned memory
   CUDA_CHECK(cudaMemcpyAsync(buffers_.pinned_output, buffers_.device_decoded_mask,
-    mask_bytes_, cudaMemcpyDeviceToHost, stream));
+    mask_bytes_, cudaMemcpyDeviceToHost, stream_));
 
   // Wait for completion
-  CUDA_CHECK(cudaStreamSynchronize(stream));
+  CUDA_CHECK(cudaStreamSynchronize(stream_));
 
   // Create cv::Mat directly from pinned memory (no extra copy!)
   cv::Mat segmentation(config_.height, config_.width, CV_8UC3, buffers_.pinned_output);
@@ -305,14 +297,6 @@ cv::Mat TensorRTInferencer::create_overlay(
   cv::addWeighted(original, 1.0f - alpha, seg_resized, alpha, 0, overlay);
 
   return overlay;
-}
-
-cudaStream_t TensorRTInferencer::get_next_stream() const
-{
-  std::lock_guard<std::mutex> lock(stream_mutex_);
-  cudaStream_t stream = streams_[current_stream_];
-  current_stream_ = (current_stream_ + 1) % config_.num_streams;
-  return stream;
 }
 
 // Much simpler CUDA preprocessing - follows the same pattern as CPU version

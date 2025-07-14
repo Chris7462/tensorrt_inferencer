@@ -7,15 +7,11 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
-//#include <opencv2/highgui.hpp>
-//#include <opencv2/cudacodec.hpp>  // Temporary
 
 // Google Test includes
 #include <gtest/gtest.h>
 
 // Local includes
-#include "tensorrt_inferencer/config.hpp"
-
 #define private public
 #include "tensorrt_inferencer/tensorrt_inferencer.hpp"
 #undef private
@@ -31,7 +27,6 @@ protected:
     conf.height = input_height_;
     conf.width = input_width_;
     conf.num_classes = num_classes_;
-    conf.num_streams = 1;
     conf.warmup_iterations = 2;
     conf.log_level = tensorrt_inferencer::Logger::Severity::kINFO;
 
