@@ -16,6 +16,8 @@
 *.aux
 *.log
 *.pdf
+*.engine
+*.png
 
 # Ignore build, devel, and logs folder
 build

@@ -268,7 +268,7 @@ cv::Mat TensorRTInferencer::infer(const cv::Mat & image)
 }
 
 cv::Mat TensorRTInferencer::create_overlay(
-  const cv::Mat & original, const cv::Mat & segmentation, float alpha) const
+  const cv::Mat & original, const cv::Mat & segmentation, float alpha)
 {
   cv::Mat overlay;
   cv::Mat seg_resized;

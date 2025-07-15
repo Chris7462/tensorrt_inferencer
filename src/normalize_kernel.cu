@@ -1,5 +1,3 @@
-#include <cuda_runtime.h>
-
 #include "tensorrt_inferencer/config.hpp"
 
 

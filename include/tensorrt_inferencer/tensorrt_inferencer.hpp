@@ -5,6 +5,9 @@
 #include <string>
 #include <vector>
 
+// CUDA includes
+#include <cuda_runtime.h>
+
 // TensorRT includes
 #include <NvInfer.h>
 
@@ -95,9 +98,9 @@ public:
   cv::Mat infer(const cv::Mat & image);
 
   // Utility functions
-  cv::Mat create_overlay(
+  static cv::Mat create_overlay(
     const cv::Mat & original, const cv::Mat & segmentation,
-    float alpha = 0.5f) const;
+    float alpha = 0.5f);
 
 private:
   // Initialization methods
