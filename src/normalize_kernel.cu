@@ -1,7 +1,7 @@
-#include "tensorrt_inferencer/config.hpp"
+#include "fcn_segmentation_trt/config.hpp"
 
 
-namespace tensorrt_inferencer
+namespace fcn_segmentation_trt
 {
 
 // Declare constant memory (visible to all kernels in this compilation unit)
@@ -64,4 +64,4 @@ void launch_normalize_kernel(
     width, height);
 }
 
-} // namespace tensorrt_inferencer
+} // namespace fcn_segmentation_trt

@@ -13,25 +13,25 @@
 
 // Local includes
 #define private public
-#include "tensorrt_inferencer/tensorrt_inferencer.hpp"
+#include "fcn_segmentation_trt/fcn_segmentation_trt.hpp"
 #undef private
 
 
-class TensorRTInferencerTest : public ::testing::Test
+class FcnSegmentationTrtTest : public ::testing::Test
 {
 protected:
   void SetUp() override
   {
     // Configure the inferencer
-    tensorrt_inferencer::TensorRTInferencer::Config conf;
+    fcn_segmentation_trt::FcnSegmentationTrt::Config conf;
     conf.height = input_height_;
     conf.width = input_width_;
     conf.num_classes = num_classes_;
     conf.warmup_iterations = 2;
-    conf.log_level = tensorrt_inferencer::Logger::Severity::kINFO;
+    conf.log_level = fcn_segmentation_trt::Logger::Severity::kINFO;
 
     try {
-      inferencer_ = std::make_unique<tensorrt_inferencer::TensorRTInferencer>(engine_path_, conf);
+      inferencer_ = std::make_unique<fcn_segmentation_trt::FcnSegmentationTrt>(engine_path_, conf);
     } catch (const std::exception & e) {
       GTEST_SKIP() << "Failed to initialize TensorRT inferencer: " << e.what();
     }
@@ -59,7 +59,7 @@ protected:
     cv::imwrite("test_output_overlay" + suffix + ".png", overlay);
   }
 
-  std::shared_ptr<tensorrt_inferencer::TensorRTInferencer> inferencer_;
+  std::shared_ptr<fcn_segmentation_trt::FcnSegmentationTrt> inferencer_;
 
 public:
   const int input_width_ = 1238;
@@ -71,7 +71,7 @@ private:
   const std::string image_path_ = "image_000.png";
 };
 
-TEST_F(TensorRTInferencerTest, TestBasicInference)
+TEST_F(FcnSegmentationTrtTest, TestBasicInference)
 {
   cv::Mat image = load_test_image();
   EXPECT_EQ(image.cols, 1238);
@@ -108,7 +108,7 @@ TEST_F(TensorRTInferencerTest, TestBasicInference)
   */
 }
 
-TEST_F(TensorRTInferencerTest, TestMultipleInferences)
+TEST_F(FcnSegmentationTrtTest, TestMultipleInferences)
 {
   cv::Mat image = load_test_image();
 
@@ -143,7 +143,7 @@ TEST_F(TensorRTInferencerTest, TestMultipleInferences)
   EXPECT_LT(avg_time, 100.0); // Should be less than 100ms on decent hardware
 }
 
-TEST_F(TensorRTInferencerTest, TestBenchmarkInference)
+TEST_F(FcnSegmentationTrtTest, TestBenchmarkInference)
 {
   cv::Mat image = load_test_image();
 
@@ -176,7 +176,7 @@ TEST_F(TensorRTInferencerTest, TestBenchmarkInference)
 }
 
 // Test with multiple different images (if available)
-TEST_F(TensorRTInferencerTest, DISABLED_TestMultipleImages)
+TEST_F(FcnSegmentationTrtTest, DISABLED_TestMultipleImages)
 {
   std::vector<std::string> test_images = {
     "image_000.png",

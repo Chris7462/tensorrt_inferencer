@@ -1,7 +1,7 @@
-#include "tensorrt_inferencer/config.hpp"
+#include "fcn_segmentation_trt/config.hpp"
 
 
-namespace tensorrt_inferencer
+namespace fcn_segmentation_trt
 {
 
 // Declare constant memory (visible to all kernels in this compilation unit)
@@ -58,4 +58,4 @@ void launch_decode_and_colorize_kernel(
     input_gpu, output_gpu, width, height, num_classes);
 }
 
-} // namespace tensorrt_inferencer
+} // namespace fcn_segmentation_trt

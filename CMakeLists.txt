@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(tensorrt_inferencer VERSION 1.0.0 LANGUAGES CXX CUDA)
+project(fcn_segmentation_trt VERSION 1.0.0 LANGUAGES CXX CUDA)
 
 set(CMAKE_BUILD_TYPE Release)
 
@@ -48,13 +48,13 @@ if(NOT TENSORRT_INCLUDE_DIR OR NOT TENSORRT_LIBRARY)
 endif()
 
 # Define the library target
-add_library(tensorrt_inferencer STATIC
-  src/tensorrt_inferencer.cpp
+add_library(fcn_segmentation_trt STATIC
+  src/fcn_segmentation_trt.cpp
   src/normalize_kernel.cu
   src/decode_and_colorize_kernel.cu)
 
 # Specify include directories for the target
-target_include_directories(tensorrt_inferencer
+target_include_directories(fcn_segmentation_trt
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
@@ -63,7 +63,7 @@ target_include_directories(tensorrt_inferencer
     #${CUDAToolkit_INCLUDE_DIRS}  # Not needed as CUDA::cudart in the target_link_libraries will provide CUDA includes for Modern CMake
 
 # Link OpenCV libraries to the target
-target_link_libraries(tensorrt_inferencer
+target_link_libraries(fcn_segmentation_trt
   PUBLIC
     CUDA::cudart  # This automatically provides CUDA includes. Make this PUBLIC so downstream packages can use it
     ${TENSORRT_LIBRARY}
@@ -73,13 +73,13 @@ target_link_libraries(tensorrt_inferencer
     ${OpenCV_LIBS})
 
 # Set target properties
-set_target_properties(tensorrt_inferencer PROPERTIES
+set_target_properties(fcn_segmentation_trt PROPERTIES
   CUDA_SEPARABLE_COMPILATION ON
   CUDA_RESOLVE_DEVICE_SYMBOLS ON  # Important for separate compilation
 )
 
 # Compiler-specific options
-target_compile_options(tensorrt_inferencer PRIVATE
+target_compile_options(fcn_segmentation_trt PRIVATE
   $<$<COMPILE_LANGUAGE:CUDA>:
     --extended-lambda
     -O3
@@ -93,10 +93,10 @@ target_compile_options(tensorrt_inferencer PRIVATE
   >
 )
 
-target_compile_features(tensorrt_inferencer PUBLIC cxx_std_17)
+target_compile_features(fcn_segmentation_trt PUBLIC cxx_std_17)
 
 # Optionally install the library
-install(TARGETS tensorrt_inferencer
+install(TARGETS fcn_segmentation_trt
   EXPORT export_${PROJECT_NAME}
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
@@ -129,15 +129,15 @@ if(BUILD_TESTING)
 
   find_package(ament_cmake_gtest REQUIRED)
 
-  ament_add_gtest(test_tensorrt_inferencer
-    test/test_tensorrt_inferencer.cpp)
+  ament_add_gtest(test_fcn_segmentation_trt
+    test/test_fcn_segmentation_trt.cpp)
 
-  target_include_directories(test_tensorrt_inferencer PRIVATE
+  target_include_directories(test_fcn_segmentation_trt PRIVATE
     ${TENSORRT_INCLUDE_DIR}
     ${OpenCV_INCLUDE_DIRS})
 
-  target_link_libraries(test_tensorrt_inferencer
-    tensorrt_inferencer
+  target_link_libraries(test_fcn_segmentation_trt
+    fcn_segmentation_trt
     gtest_main)
 
 endif()

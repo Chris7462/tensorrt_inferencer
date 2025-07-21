@@ -3,7 +3,7 @@
 #include <cuda_runtime.h>
 
 
-namespace tensorrt_inferencer
+namespace fcn_segmentation_trt
 {
 void initialize_mean_std_constants();
 
@@ -14,4 +14,4 @@ void launch_normalize_kernel(
   int width, int height,
   cudaStream_t stream);
 
-} // namespace tensorrt_inferencer
+} // namespace fcn_segmentation_trt

@@ -7,7 +7,7 @@
 #include <cuda_runtime.h>
 
 
-namespace tensorrt_inferencer
+namespace fcn_segmentation_trt
 {
 
 // Custom exception classes
@@ -34,4 +34,4 @@ public:
     } \
   } while(0)
 
-} // namespace tensorrt_inferencer
+} // namespace fcn_segmentation_trt

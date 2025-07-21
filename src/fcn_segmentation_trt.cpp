@@ -5,14 +5,14 @@
 #include <opencv2/imgproc.hpp>
 
 // local header files: This project includes local header files.
-#include "tensorrt_inferencer/config.hpp"
-#include "tensorrt_inferencer/exception.hpp"
-#include "tensorrt_inferencer/tensorrt_inferencer.hpp"
-#include "tensorrt_inferencer/normalize_kernel.hpp"
-#include "tensorrt_inferencer/decode_and_colorize_kernel.hpp"
+#include "fcn_segmentation_trt/config.hpp"
+#include "fcn_segmentation_trt/exception.hpp"
+#include "fcn_segmentation_trt/fcn_segmentation_trt.hpp"
+#include "fcn_segmentation_trt/normalize_kernel.hpp"
+#include "fcn_segmentation_trt/decode_and_colorize_kernel.hpp"
 
 
-namespace tensorrt_inferencer
+namespace fcn_segmentation_trt
 {
 
 // Logger implementation
@@ -32,8 +32,8 @@ void Logger::log(Severity severity, const char * msg) noexcept
   }
 }
 
-// TensorRTInferencer implementation
-TensorRTInferencer::TensorRTInferencer(const std::string & engine_path, const Config & config)
+// FcnSegmentationTrt implementation
+FcnSegmentationTrt::FcnSegmentationTrt(const std::string & engine_path, const Config & config)
 : config_(config)
 {
   try {
@@ -60,12 +60,12 @@ TensorRTInferencer::TensorRTInferencer(const std::string & engine_path, const Co
   }
 }
 
-TensorRTInferencer::~TensorRTInferencer()
+FcnSegmentationTrt::~FcnSegmentationTrt()
 {
   cleanup();
 }
 
-void TensorRTInferencer::initialize_engine(const std::string & engine_path)
+void FcnSegmentationTrt::initialize_engine(const std::string & engine_path)
 {
   auto engine_data = load_engine_file(engine_path);
 
@@ -88,7 +88,7 @@ void TensorRTInferencer::initialize_engine(const std::string & engine_path)
   }
 }
 
-std::vector<uint8_t> TensorRTInferencer::load_engine_file(
+std::vector<uint8_t> FcnSegmentationTrt::load_engine_file(
   const std::string & engine_path) const
 {
   std::ifstream file(engine_path, std::ios::binary | std::ios::ate);
@@ -107,7 +107,7 @@ std::vector<uint8_t> TensorRTInferencer::load_engine_file(
   return buffer;
 }
 
-void TensorRTInferencer::find_tensor_names()
+void FcnSegmentationTrt::find_tensor_names()
 {
   bool found_input = false, found_output = false;
 
@@ -129,7 +129,7 @@ void TensorRTInferencer::find_tensor_names()
   }
 }
 
-void TensorRTInferencer::initialize_memory()
+void FcnSegmentationTrt::initialize_memory()
 {
   // Calculate memory sizes
   input_size_ = 1 * 3 * config_.height * config_.width * sizeof(float);
@@ -159,19 +159,19 @@ void TensorRTInferencer::initialize_memory()
   }
 }
 
-void TensorRTInferencer::initialize_streams()
+void FcnSegmentationTrt::initialize_streams()
 {
   CUDA_CHECK(cudaStreamCreate(&stream_));
 }
 
-void TensorRTInferencer::initialize_constants()
+void FcnSegmentationTrt::initialize_constants()
 {
   // Initialize CUDA constant memory once
   initialize_mean_std_constants();
   initialize_colormap_constants();
 }
 
-void TensorRTInferencer::warmup()
+void FcnSegmentationTrt::warmup()
 {
   CUDA_CHECK(cudaMemsetAsync(buffers_.device_input, 0, input_size_, stream_));
 
@@ -197,7 +197,7 @@ void TensorRTInferencer::warmup()
   std::cout << "Engine warmed up with " << config_.warmup_iterations << " iterations" << std::endl;
 }
 
-void TensorRTInferencer::cleanup() noexcept
+void FcnSegmentationTrt::cleanup() noexcept
 {
   // Free pinned host memory
   if (buffers_.pinned_input) {
@@ -235,7 +235,7 @@ void TensorRTInferencer::cleanup() noexcept
   }
 }
 
-cv::Mat TensorRTInferencer::infer(const cv::Mat & image)
+cv::Mat FcnSegmentationTrt::infer(const cv::Mat & image)
 {
   // Preprocess directly into GPU memory
   preprocess_image(image, buffers_.device_input, stream_);
@@ -267,7 +267,7 @@ cv::Mat TensorRTInferencer::infer(const cv::Mat & image)
   return segmentation.clone(); // Clone to regular memory for return
 }
 
-cv::Mat TensorRTInferencer::create_overlay(
+cv::Mat FcnSegmentationTrt::create_overlay(
   const cv::Mat & original, const cv::Mat & segmentation, float alpha)
 {
   cv::Mat overlay;
@@ -283,7 +283,7 @@ cv::Mat TensorRTInferencer::create_overlay(
 }
 
 // Much simpler CUDA preprocessing - follows the same pattern as CPU version
-void TensorRTInferencer::preprocess_image(
+void FcnSegmentationTrt::preprocess_image(
   const cv::Mat & image, float * output, cudaStream_t stream) const
 {
   // Step 1: Resize image using OpenCV (on CPU)
@@ -306,4 +306,4 @@ void TensorRTInferencer::preprocess_image(
     stream);
 }
 
-} // namespace tensorrt_inferencer
+} // namespace fcn_segmentation_trt
