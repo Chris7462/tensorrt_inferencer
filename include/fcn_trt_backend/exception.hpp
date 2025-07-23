@@ -7,7 +7,7 @@
 #include <cuda_runtime.h>
 
 
-namespace fcn_segmentation_trt
+namespace fcn_trt_backend
 {
 
 // Custom exception classes
@@ -34,4 +34,4 @@ public:
     } \
   } while(0)
 
-} // namespace fcn_segmentation_trt
+} // namespace fcn_trt_backend

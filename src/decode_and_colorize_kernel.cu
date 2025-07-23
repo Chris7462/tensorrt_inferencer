@@ -1,7 +1,7 @@
-#include "fcn_segmentation_trt/config.hpp"
+#include "fcn_trt_backend/config.hpp"
 
 
-namespace fcn_segmentation_trt
+namespace fcn_trt_backend
 {
 
 // Declare constant memory (visible to all kernels in this compilation unit)
@@ -58,4 +58,4 @@ void launch_decode_and_colorize_kernel(
     input_gpu, output_gpu, width, height, num_classes);
 }
 
-} // namespace fcn_segmentation_trt
+} // namespace fcn_trt_backend

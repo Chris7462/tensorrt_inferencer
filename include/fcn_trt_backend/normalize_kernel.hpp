@@ -3,7 +3,7 @@
 #include <cuda_runtime.h>
 
 
-namespace fcn_segmentation_trt
+namespace fcn_trt_backend
 {
 void initialize_mean_std_constants();
 
@@ -14,4 +14,4 @@ void launch_normalize_kernel(
   int width, int height,
   cudaStream_t stream);
 
-} // namespace fcn_segmentation_trt
+} // namespace fcn_trt_backend

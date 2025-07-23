@@ -15,7 +15,7 @@
 #include <opencv2/core.hpp>
 
 
-namespace fcn_segmentation_trt
+namespace fcn_trt_backend
 {
 // TensorRT Logger with configurable severity
 class Logger : public nvinfer1::ILogger
@@ -31,7 +31,7 @@ private:
 };
 
 // Optimized TensorRT inference class
-class FcnSegmentationTrt
+class FcnTrtBackend
 {
 public:
   struct Config
@@ -78,16 +78,16 @@ public:
   };
 
   // Constructor with configuration
-  explicit FcnSegmentationTrt(const std::string & engine_path, const Config & config = Config());
+  explicit FcnTrtBackend(const std::string & engine_path, const Config & config = Config());
 
   // Destructor
-  ~FcnSegmentationTrt();
+  ~FcnTrtBackend();
 
   // Disable copy and move semantics - use std::unique_ptr for ownership transfer
-  FcnSegmentationTrt(const FcnSegmentationTrt &) = delete;
-  FcnSegmentationTrt & operator=(const FcnSegmentationTrt &) = delete;
-  FcnSegmentationTrt(FcnSegmentationTrt &&) = delete;
-  FcnSegmentationTrt & operator=(FcnSegmentationTrt &&) = delete;
+  FcnTrtBackend(const FcnTrtBackend &) = delete;
+  FcnTrtBackend & operator=(const FcnTrtBackend &) = delete;
+  FcnTrtBackend(FcnTrtBackend &&) = delete;
+  FcnTrtBackend & operator=(FcnTrtBackend &&) = delete;
 
   // Main inference method
   /**
@@ -155,4 +155,4 @@ private:
   cudaStream_t stream_;
 };
 
-} // namespace fcn_segmentation_trt
+} // namespace fcn_trt_backend

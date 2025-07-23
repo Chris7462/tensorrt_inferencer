@@ -3,7 +3,7 @@
 #include <cuda_runtime.h>
 
 
-namespace fcn_segmentation_trt
+namespace fcn_trt_backend
 {
 void initialize_colormap_constants();
 
@@ -23,4 +23,4 @@ void launch_decode_and_colorize_kernel(
   const float * input_gpu, uchar3 * output_gpu, int width, int height, int num_classes,
   cudaStream_t stream);
 
-} // namespace fcn_segmentation_trt
+} // namespace fcn_trt_backend
