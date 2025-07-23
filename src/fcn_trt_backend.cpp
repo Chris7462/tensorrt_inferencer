@@ -32,8 +32,8 @@ void Logger::log(Severity severity, const char * msg) noexcept
   }
 }
 
-// FcnTrtBackend implementation
-FcnTrtBackend::FcnTrtBackend(const std::string & engine_path, const Config & config)
+// FCNTrtBackend implementation
+FCNTrtBackend::FCNTrtBackend(const std::string & engine_path, const Config & config)
 : config_(config)
 {
   try {
@@ -60,12 +60,12 @@ FcnTrtBackend::FcnTrtBackend(const std::string & engine_path, const Config & con
   }
 }
 
-FcnTrtBackend::~FcnTrtBackend()
+FCNTrtBackend::~FCNTrtBackend()
 {
   cleanup();
 }
 
-void FcnTrtBackend::initialize_engine(const std::string & engine_path)
+void FCNTrtBackend::initialize_engine(const std::string & engine_path)
 {
   auto engine_data = load_engine_file(engine_path);
 
@@ -88,7 +88,7 @@ void FcnTrtBackend::initialize_engine(const std::string & engine_path)
   }
 }
 
-std::vector<uint8_t> FcnTrtBackend::load_engine_file(
+std::vector<uint8_t> FCNTrtBackend::load_engine_file(
   const std::string & engine_path) const
 {
   std::ifstream file(engine_path, std::ios::binary | std::ios::ate);
@@ -107,7 +107,7 @@ std::vector<uint8_t> FcnTrtBackend::load_engine_file(
   return buffer;
 }
 
-void FcnTrtBackend::find_tensor_names()
+void FCNTrtBackend::find_tensor_names()
 {
   bool found_input = false, found_output = false;
 
@@ -129,7 +129,7 @@ void FcnTrtBackend::find_tensor_names()
   }
 }
 
-void FcnTrtBackend::initialize_memory()
+void FCNTrtBackend::initialize_memory()
 {
   // Calculate memory sizes
   input_size_ = 1 * 3 * config_.height * config_.width * sizeof(float);
@@ -159,19 +159,19 @@ void FcnTrtBackend::initialize_memory()
   }
 }
 
-void FcnTrtBackend::initialize_streams()
+void FCNTrtBackend::initialize_streams()
 {
   CUDA_CHECK(cudaStreamCreate(&stream_));
 }
 
-void FcnTrtBackend::initialize_constants()
+void FCNTrtBackend::initialize_constants()
 {
   // Initialize CUDA constant memory once
   initialize_mean_std_constants();
   initialize_colormap_constants();
 }
 
-void FcnTrtBackend::warmup()
+void FCNTrtBackend::warmup()
 {
   CUDA_CHECK(cudaMemsetAsync(buffers_.device_input, 0, input_size_, stream_));
 
@@ -197,7 +197,7 @@ void FcnTrtBackend::warmup()
   std::cout << "Engine warmed up with " << config_.warmup_iterations << " iterations" << std::endl;
 }
 
-void FcnTrtBackend::cleanup() noexcept
+void FCNTrtBackend::cleanup() noexcept
 {
   // Free pinned host memory
   if (buffers_.pinned_input) {
@@ -235,7 +235,7 @@ void FcnTrtBackend::cleanup() noexcept
   }
 }
 
-cv::Mat FcnTrtBackend::infer(const cv::Mat & image)
+cv::Mat FCNTrtBackend::infer(const cv::Mat & image)
 {
   // Preprocess directly into GPU memory
   preprocess_image(image, buffers_.device_input, stream_);
@@ -267,7 +267,7 @@ cv::Mat FcnTrtBackend::infer(const cv::Mat & image)
   return segmentation.clone(); // Clone to regular memory for return
 }
 
-cv::Mat FcnTrtBackend::create_overlay(
+cv::Mat FCNTrtBackend::create_overlay(
   const cv::Mat & original, const cv::Mat & segmentation, float alpha)
 {
   cv::Mat overlay;
@@ -283,7 +283,7 @@ cv::Mat FcnTrtBackend::create_overlay(
 }
 
 // Much simpler CUDA preprocessing - follows the same pattern as CPU version
-void FcnTrtBackend::preprocess_image(
+void FCNTrtBackend::preprocess_image(
   const cv::Mat & image, float * output, cudaStream_t stream) const
 {
   // Step 1: Resize image using OpenCV (on CPU)

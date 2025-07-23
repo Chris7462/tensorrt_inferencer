@@ -17,13 +17,13 @@
 #undef private
 
 
-class FcnTrtBackendTest : public ::testing::Test
+class FCNTrtBackendTest : public ::testing::Test
 {
 protected:
   void SetUp() override
   {
     // Configure the inferencer
-    fcn_trt_backend::FcnTrtBackend::Config conf;
+    fcn_trt_backend::FCNTrtBackend::Config conf;
     conf.height = input_height_;
     conf.width = input_width_;
     conf.num_classes = num_classes_;
@@ -31,7 +31,7 @@ protected:
     conf.log_level = fcn_trt_backend::Logger::Severity::kINFO;
 
     try {
-      segmentor = std::make_unique<fcn_trt_backend::FcnTrtBackend>(engine_path_, conf);
+      segmentor = std::make_unique<fcn_trt_backend::FCNTrtBackend>(engine_path_, conf);
     } catch (const std::exception & e) {
       GTEST_SKIP() << "Failed to initialize TensorRT inferencer: " << e.what();
     }
@@ -59,7 +59,7 @@ protected:
     cv::imwrite("test_output_overlay" + suffix + ".png", overlay);
   }
 
-  std::shared_ptr<fcn_trt_backend::FcnTrtBackend> segmentor;
+  std::shared_ptr<fcn_trt_backend::FCNTrtBackend> segmentor;
 
 public:
   const int input_width_ = 1238;
@@ -71,7 +71,7 @@ private:
   const std::string image_path_ = "image_000.png";
 };
 
-TEST_F(FcnTrtBackendTest, TestBasicInference)
+TEST_F(FCNTrtBackendTest, TestBasicInference)
 {
   cv::Mat image = load_test_image();
   EXPECT_EQ(image.cols, 1238);
@@ -108,7 +108,7 @@ TEST_F(FcnTrtBackendTest, TestBasicInference)
   */
 }
 
-TEST_F(FcnTrtBackendTest, TestMultipleInferences)
+TEST_F(FCNTrtBackendTest, TestMultipleInferences)
 {
   cv::Mat image = load_test_image();
 
@@ -143,7 +143,7 @@ TEST_F(FcnTrtBackendTest, TestMultipleInferences)
   EXPECT_LT(avg_time, 100.0); // Should be less than 100ms on decent hardware
 }
 
-TEST_F(FcnTrtBackendTest, TestBenchmarkInference)
+TEST_F(FCNTrtBackendTest, TestBenchmarkInference)
 {
   cv::Mat image = load_test_image();
 
@@ -176,7 +176,7 @@ TEST_F(FcnTrtBackendTest, TestBenchmarkInference)
 }
 
 // Test with multiple different images (if available)
-TEST_F(FcnTrtBackendTest, DISABLED_TestMultipleImages)
+TEST_F(FCNTrtBackendTest, DISABLED_TestMultipleImages)
 {
   std::vector<std::string> test_images = {
     "image_000.png",
