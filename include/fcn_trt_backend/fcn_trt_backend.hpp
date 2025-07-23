@@ -31,7 +31,7 @@ private:
 };
 
 // Optimized TensorRT inference class
-class FcnTrtBackend
+class FCNTrtBackend
 {
 public:
   struct Config
@@ -45,6 +45,7 @@ public:
      * @brief Input image width
      */
     int width;
+
     /**
      * @brief Number of output classes
      * @details This should match the number of classes in your model.
@@ -78,16 +79,16 @@ public:
   };
 
   // Constructor with configuration
-  explicit FcnTrtBackend(const std::string & engine_path, const Config & config = Config());
+  explicit FCNTrtBackend(const std::string & engine_path, const Config & config = Config());
 
   // Destructor
-  ~FcnTrtBackend();
+  ~FCNTrtBackend();
 
   // Disable copy and move semantics - use std::unique_ptr for ownership transfer
-  FcnTrtBackend(const FcnTrtBackend &) = delete;
-  FcnTrtBackend & operator=(const FcnTrtBackend &) = delete;
-  FcnTrtBackend(FcnTrtBackend &&) = delete;
-  FcnTrtBackend & operator=(FcnTrtBackend &&) = delete;
+  FCNTrtBackend(const FCNTrtBackend &) = delete;
+  FCNTrtBackend & operator=(const FCNTrtBackend &) = delete;
+  FCNTrtBackend(FCNTrtBackend &&) = delete;
+  FCNTrtBackend & operator=(FCNTrtBackend &&) = delete;
 
   // Main inference method
   /**
@@ -109,7 +110,7 @@ private:
   void initialize_memory();
   void initialize_streams();
   void initialize_constants();
-  void warmup();
+  void warmup_engine();
 
   // Memory management
   void cleanup() noexcept;
