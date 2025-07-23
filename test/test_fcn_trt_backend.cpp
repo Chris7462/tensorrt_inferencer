@@ -31,7 +31,7 @@ protected:
     conf.log_level = fcn_trt_backend::Logger::Severity::kINFO;
 
     try {
-      inferencer_ = std::make_unique<fcn_trt_backend::FcnTrtBackend>(engine_path_, conf);
+      segmentor = std::make_unique<fcn_trt_backend::FcnTrtBackend>(engine_path_, conf);
     } catch (const std::exception & e) {
       GTEST_SKIP() << "Failed to initialize TensorRT inferencer: " << e.what();
     }
@@ -59,7 +59,7 @@ protected:
     cv::imwrite("test_output_overlay" + suffix + ".png", overlay);
   }
 
-  std::shared_ptr<fcn_trt_backend::FcnTrtBackend> inferencer_;
+  std::shared_ptr<fcn_trt_backend::FcnTrtBackend> segmentor;
 
 public:
   const int input_width_ = 1238;
@@ -79,19 +79,19 @@ TEST_F(FcnTrtBackendTest, TestBasicInference)
   EXPECT_EQ(image.type(), CV_8UC3);
 
   auto start = std::chrono::high_resolution_clock::now();
-  cv::Mat segmentation = inferencer_->infer(image);
+  cv::Mat segmentation = segmentor->infer(image);
   auto end = std::chrono::high_resolution_clock::now();
 
   auto duration = std::chrono::duration<double, std::milli>(end - start);
   std::cout << "GPU infer with decode: " << duration.count() << " ms" << std::endl;
 
   // Validate output
-  EXPECT_EQ(segmentation.rows, inferencer_->config_.height);
-  EXPECT_EQ(segmentation.cols, inferencer_->config_.width);
+  EXPECT_EQ(segmentation.rows, segmentor->config_.height);
+  EXPECT_EQ(segmentation.cols, segmentor->config_.width);
   EXPECT_EQ(segmentation.type(), CV_8UC3);
 
   // Create overlay
-  cv::Mat overlay = inferencer_->create_overlay(image, segmentation, 0.5f);
+  cv::Mat overlay = segmentor->create_overlay(image, segmentation, 0.5f);
   EXPECT_EQ(overlay.size(), image.size());
   EXPECT_EQ(overlay.type(), CV_8UC3);
 
@@ -117,15 +117,15 @@ TEST_F(FcnTrtBackendTest, TestMultipleInferences)
 
   for (int i = 0; i < num_iterations; ++i) {
     auto start = std::chrono::high_resolution_clock::now();
-    auto segmentation = inferencer_->infer(image);
+    auto segmentation = segmentor->infer(image);
     auto end = std::chrono::high_resolution_clock::now();
 
     auto duration = std::chrono::duration<double, std::milli>(end - start);
     inference_times.push_back(duration.count());
 
     // Validate output consistency
-    EXPECT_EQ(segmentation.rows, inferencer_->config_.height);
-    EXPECT_EQ(segmentation.cols, inferencer_->config_.width);
+    EXPECT_EQ(segmentation.rows, segmentor->config_.height);
+    EXPECT_EQ(segmentation.cols, segmentor->config_.width);
   }
 
   // Calculate statistics
@@ -152,14 +152,14 @@ TEST_F(FcnTrtBackendTest, TestBenchmarkInference)
 
   // Warmup
   for (int i = 0; i < warmup_iterations; ++i) {
-    inferencer_->infer(image);
+    segmentor->infer(image);
   }
 
   // Benchmark
   auto start = std::chrono::high_resolution_clock::now();
 
   for (int i = 0; i < benchmark_iterations; ++i) {
-    inferencer_->infer(image);
+    segmentor->infer(image);
   }
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -199,8 +199,8 @@ TEST_F(FcnTrtBackendTest, DISABLED_TestMultipleImages)
     }
 
     try {
-      auto segmentation = inferencer_->infer(image);
-      auto overlay = inferencer_->create_overlay(image, segmentation);
+      auto segmentation = segmentor->infer(image);
+      auto overlay = segmentor->create_overlay(image, segmentation);
 
       // Save results with image-specific suffix
       std::string suffix = "_" + std::to_string(successful_tests);
