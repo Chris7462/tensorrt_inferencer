@@ -21,9 +21,9 @@ endif()
 
 # Custom target to generate ONNX model
 add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/models/fcn_resnet50_374x1238.onnx
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/models/fcn_resnet101_374x1238.onnx
   COMMAND ${PYTHON3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/script/export_fcn_to_onnx.py
-          --model fcn_resnet50 --output-dir ${CMAKE_CURRENT_SOURCE_DIR}/models
+          --output-dir ${CMAKE_CURRENT_SOURCE_DIR}/models
   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/script/export_fcn_to_onnx.py
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   COMMENT "Generating ONNX model..."
@@ -32,14 +32,14 @@ add_custom_command(
 
 # Custom target to generate TensorRT engine
 add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/engines/fcn_resnet50_374x1238.engine
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/engines/fcn_resnet101_374x1238.engine
   COMMAND ${TRTEXEC_EXECUTABLE}
-          --onnx=${CMAKE_CURRENT_SOURCE_DIR}/models/fcn_resnet50_374x1238.onnx
-          --saveEngine=${CMAKE_CURRENT_SOURCE_DIR}/engines/fcn_resnet50_374x1238.engine
+          --onnx=${CMAKE_CURRENT_SOURCE_DIR}/models/fcn_resnet101_374x1238.onnx
+          --saveEngine=${CMAKE_CURRENT_SOURCE_DIR}/engines/fcn_resnet101_374x1238.engine
           --memPoolSize=workspace:4096
           --fp16
           --verbose
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/models/fcn_resnet50_374x1238.onnx
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/models/fcn_resnet101_374x1238.onnx
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   COMMENT "Generating TensorRT engine..."
   VERBATIM
@@ -47,21 +47,16 @@ add_custom_command(
 
 # Create custom targets that can be built
 add_custom_target(generate_onnx
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/models/fcn_resnet50_374x1238.onnx
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/models/fcn_resnet101_374x1238.onnx
 )
 
 add_custom_target(generate_engine
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/engines/fcn_resnet50_374x1238.engine
-)
-
-# Main target that generates both ONNX and engine
-add_custom_target(generate_models ALL
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/engines/fcn_resnet50_374x1238.engine
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/engines/fcn_resnet101_374x1238.engine
 )
 
 # Function to add model generation dependency to a target
 function(add_model_generation_dependency target_name)
-  add_dependencies(${target_name} generate_models)
+  add_dependencies(${target_name} generate_engine)
 endfunction()
 
 # Install generated models and engines

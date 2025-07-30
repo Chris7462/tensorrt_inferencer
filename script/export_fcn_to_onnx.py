@@ -20,16 +20,11 @@ class FCNWrapper(nn.Module):
         return output['out'] if isinstance(output, dict) else output
 
 
-def export_fcn_model(model_name, output_path, input_height, input_width):
-    print(f'Loading {model_name} model...')
+def export_fcn_model(output_path, input_height, input_width):
+    print('Loading FCN model with ResNet101 backbone...')
 
     # Load pre-trained model
-    if model_name == 'fcn_resnet50':
-        base_model = models.fcn_resnet50(weights='DEFAULT')
-    elif model_name == 'fcn_resnet101':
-        base_model = models.fcn_resnet101(weights='DEFAULT')
-    else:
-        raise ValueError("model_name must be 'fcn_resnet50' or 'fcn_resnet101'")
+    base_model = models.fcn_resnet101(weights='DEFAULT')
 
     model = FCNWrapper(base_model)
     model.eval()
@@ -63,20 +58,17 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('--height', type=int, default=374, help='The height of the input image')
     ap.add_argument('--width', type=int, default=1238, help='The width of the input image')
-    ap.add_argument('--model', type=str, required=True,
-                    help='model_name must be "fcn_resnet50" or "fcn_resnet101"')
     ap.add_argument('--output-dir', type=str, required=True,
                     help='The path to output onnx file')
     args = vars(ap.parse_args())
-    # args = {'height': 374, 'width': 1238, 'model': 'fcn_resnet50', 'output_dir': '../model'}
+    # args = {'height': 374, 'width': 1238, 'output_dir': '../models'}
 
     height = args['height']
     width = args['width']
-    model = args['model']
     output_dir = args['output_dir']
 
-    print(f'=== Exporting {model} for {height}x{width} images ===')
-    export_fcn_model(model_name=model, output_path=f'{output_dir}/{model}_{height}x{width}.onnx',
+    print(f'=== Exporting fcn_resnet101 for {height}x{width} images ===')
+    export_fcn_model(output_path=f'{output_dir}/fcn_resnet101_{height}x{width}.onnx',
                      input_width=width, input_height=height)
 
     print('ONNX export completed.')
