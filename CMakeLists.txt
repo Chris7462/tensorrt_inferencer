@@ -12,20 +12,18 @@ find_package(ament_cmake REQUIRED)
 find_package(CUDAToolkit REQUIRED)
 find_package(OpenCV REQUIRED)
 
-# Enable CUDA separable compilation
-# set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)  # This is global setting. Should have set property on the target instead
-
 # Auto-detect CUDA architecture if not specified
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
   set(CMAKE_CUDA_ARCHITECTURES "native")
+  # Fallback to common architectures if native detection fails
+  #set(CMAKE_CUDA_ARCHITECTURES "75;86;89")  # RTX 20xx, 30xx, 40xx series
 endif()
-# Manual architecture options (uncomment as needed)
-# set(CMAKE_CUDA_ARCHITECTURES 75)  # For RTX 20xx series (Turing)
-# set(CMAKE_CUDA_ARCHITECTURES 86)  # For RTX 30xx series (Ampere)
-# set(CMAKE_CUDA_ARCHITECTURES 89)  # For RTX 40xx series (Ada Lovelace)
 
-# Find TensorRT
-set(TENSORRT_ROOT /usr/local/tensorrt)
+# Find TensorRT - make it configurable
+if(NOT DEFINED TENSORRT_ROOT)
+  set(TENSORRT_ROOT /usr/local/tensorrt)
+endif()
+
 find_path(TENSORRT_INCLUDE_DIR NvInfer.h
   HINTS ${TENSORRT_ROOT} ${CUDA_TOOLKIT_ROOT_DIR}
   PATH_SUFFIXES include)
@@ -34,24 +32,22 @@ find_library(TENSORRT_LIBRARY nvinfer
   HINTS ${TENSORRT_ROOT} ${TENSORRT_BUILD} ${CUDA_TOOLKIT_ROOT_DIR}
   PATH_SUFFIXES lib lib64 lib/x64)
 
-find_library(TENSORRT_ONNX_PARSER_LIBRARY nvonnxparser
-  HINTS ${TENSORRT_ROOT} ${TENSORRT_BUILD} ${CUDA_TOOLKIT_ROOT_DIR}
-  PATH_SUFFIXES lib lib64 lib/x64)
-
-find_library(TENSORRT_PLUGIN_LIBRARY nvinfer_plugin
-  HINTS ${TENSORRT_ROOT} ${TENSORRT_BUILD} ${CUDA_TOOLKIT_ROOT_DIR}
-  PATH_SUFFIXES lib lib64 lib/x64)
-
 # Check if TensorRT was found
 if(NOT TENSORRT_INCLUDE_DIR OR NOT TENSORRT_LIBRARY)
   message(FATAL_ERROR "TensorRT not found. Please set TENSORRT_ROOT to the TensorRT installation directory.")
 endif()
+
+# Include model generation logic
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ModelGeneration.cmake)
 
 # Define the library target
 add_library(fcn_trt_backend STATIC
   src/fcn_trt_backend.cpp
   src/normalize_kernel.cu
   src/decode_and_colorize_kernel.cu)
+
+# Add model generation dependency to the library
+add_model_generation_dependency(fcn_trt_backend)
 
 # Specify include directories for the target
 target_include_directories(fcn_trt_backend
@@ -67,8 +63,6 @@ target_link_libraries(fcn_trt_backend
   PUBLIC
     CUDA::cudart  # This automatically provides CUDA includes. Make this PUBLIC so downstream packages can use it
     ${TENSORRT_LIBRARY}
-    ${TENSORRT_ONNX_PARSER_LIBRARY}
-    ${TENSORRT_PLUGIN_LIBRARY}
     ${OpenCV_LIBS})
 
 # Set target properties
@@ -128,6 +122,9 @@ if(BUILD_TESTING)
 
   find_package(ament_cmake_gtest REQUIRED)
 
+  # Include engine symbolic link setup
+  include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/TestingSetup.cmake)
+
   ament_add_gtest(test_fcn_trt_backend
     test/test_fcn_trt_backend.cpp)
 
@@ -135,6 +132,8 @@ if(BUILD_TESTING)
     fcn_trt_backend
     gtest_main)
 
+  # Make the test depend on the symbolic link
+  add_dependencies(test_fcn_trt_backend test_engine_link test_image_link)
 endif()
 
 ament_package()

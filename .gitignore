@@ -17,6 +17,7 @@
 *.log
 *.pdf
 *.engine
+*.onnx
 *.png
 
 # Ignore build, devel, and logs folder

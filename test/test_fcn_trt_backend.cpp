@@ -67,7 +67,7 @@ public:
   const int num_classes_ = 21;
 
 private:
-  const std::string engine_path_ = "fcn_resnet50_1238x374.engine";
+  const std::string engine_path_ = "fcn_resnet50_374x1238.engine";
   const std::string image_path_ = "image_000.png";
 };
 
