@@ -5,7 +5,6 @@
 #include <opencv2/imgproc.hpp>
 
 // local header files: This project includes local header files.
-#include "fcn_trt_backend/config.hpp"
 #include "fcn_trt_backend/exception.hpp"
 #include "fcn_trt_backend/fcn_trt_backend.hpp"
 #include "fcn_trt_backend/normalize_kernel.hpp"
@@ -140,13 +139,11 @@ void FCNTrtBackend::initialize_memory()
 
   // Set tensor addresses
   if (!context_->setTensorAddress(input_name_.c_str(),
-    static_cast<void *>(buffers_.device_input)))
-  {
+    static_cast<void *>(buffers_.device_input))) {
     throw TensorRTException("Failed to set input tensor address");
   }
   if (!context_->setTensorAddress(output_name_.c_str(),
-    static_cast<void *>(buffers_.device_output)))
-  {
+    static_cast<void *>(buffers_.device_output))) {
     throw TensorRTException("Failed to set output tensor address");
   }
 }

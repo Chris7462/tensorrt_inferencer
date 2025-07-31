@@ -1,4 +1,5 @@
 #include "fcn_trt_backend/config.hpp"
+#include "fcn_trt_backend/decode_and_colorize_kernel.hpp"
 
 
 namespace fcn_trt_backend
@@ -22,7 +23,7 @@ void initialize_colormap_constants()
 
 // decode_segmentation_gpu.cu
 __global__ void decode_and_colorize_kernel(
-  const float* input, uchar3* output, int width, int height, int num_classes)
+  const float * input, uchar3 * output, int width, int height, int num_classes)
 {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -47,7 +48,7 @@ __global__ void decode_and_colorize_kernel(
 }
 
 void launch_decode_and_colorize_kernel(
-  const float* input_gpu, uchar3* output_gpu, int width, int height, int num_classes,
+  const float * input_gpu, uchar3 * output_gpu, int width, int height, int num_classes,
   cudaStream_t stream)
 {
   dim3 blockSize(16, 16);

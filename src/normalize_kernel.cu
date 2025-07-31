@@ -1,4 +1,5 @@
 #include "fcn_trt_backend/config.hpp"
+#include "fcn_trt_backend/normalize_kernel.hpp"
 
 
 namespace fcn_trt_backend
@@ -12,18 +13,16 @@ __constant__ float d_std[3];
 void initialize_mean_std_constants()
 {
   // Copy mean values
-  float h_mean[3] = {config::MEAN[0], config::MEAN[1], config::MEAN[2]};
-  cudaMemcpyToSymbol(d_mean, h_mean, 3 * sizeof(float));
+  cudaMemcpyToSymbol(d_mean, config::MEAN.data(), 3 * sizeof(float));
 
   // Copy std values
-  float h_std[3] = {config::STDDEV[0], config::STDDEV[1], config::STDDEV[2]};
-  cudaMemcpyToSymbol(d_std, h_std, 3 * sizeof(float));
+  cudaMemcpyToSymbol(d_std, config::STDDEV.data(), 3 * sizeof(float));
 }
 
 // Simple CUDA kernel for normalization (assumes image is already resized)
 __global__ void normalize_kernel(
-  const float *input_data,
-  float *output_data,
+  const float * input_data,
+  float * output_data,
   int width, int height)
 {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -50,8 +49,8 @@ __global__ void normalize_kernel(
 
 // Host function wrapper
 void launch_normalize_kernel(
-  const float *input_data,
-  float *output_data,
+  const float * input_data,
+  float * output_data,
   int width, int height,
   cudaStream_t stream)
 {

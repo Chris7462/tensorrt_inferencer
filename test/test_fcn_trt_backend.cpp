@@ -176,7 +176,8 @@ TEST_F(FCNTrtBackendTest, TestBenchmarkInference)
 }
 
 // Test with multiple different images (if available)
-TEST_F(FCNTrtBackendTest, DISABLED_TestMultipleImages)
+//TEST_F(FCNTrtBackendTest, DISABLED_TestMultipleImages)
+TEST_F(FCNTrtBackendTest, TestMultipleImages)
 {
   std::vector<std::string> test_images = {
     "image_000.png",
