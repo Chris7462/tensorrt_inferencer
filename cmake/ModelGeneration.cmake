@@ -1,9 +1,12 @@
 # ModelGeneration.cmake
 # This file handles automatic ONNX and TensorRT engine generation
 
+# Include shared model configuration
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Config.cmake)
+
 # Create directories for models and engines
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/models)
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/engines)
+file(MAKE_DIRECTORY ${ONNXS_DIR})
+file(MAKE_DIRECTORY ${ENGINES_DIR})
 
 # Find Python3
 find_program(PYTHON3_EXECUTABLE python3 REQUIRED)
@@ -21,37 +24,28 @@ endif()
 
 # Custom target to generate ONNX model
 add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/models/fcn_resnet101_374x1238.onnx
-  COMMAND ${PYTHON3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/script/export_fcn_to_onnx.py
-          --output-dir ${CMAKE_CURRENT_SOURCE_DIR}/models
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/script/export_fcn_to_onnx.py
+  OUTPUT ${ONNX_PATH}
+  COMMAND ${PYTHON3_EXECUTABLE} ${EXPORT_SCRIPT_PATH} --output-dir ${ONNXS_DIR}
+  DEPENDS ${EXPORT_SCRIPT_PATH}
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMENT "Generating ONNX model..."
+  COMMENT "Generating ONNX format: ${ONNX_FILE}..."
   VERBATIM
 )
 
 # Custom target to generate TensorRT engine
 add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/engines/fcn_resnet101_374x1238.engine
-  COMMAND ${TRTEXEC_EXECUTABLE}
-          --onnx=${CMAKE_CURRENT_SOURCE_DIR}/models/fcn_resnet101_374x1238.onnx
-          --saveEngine=${CMAKE_CURRENT_SOURCE_DIR}/engines/fcn_resnet101_374x1238.engine
-          --memPoolSize=workspace:4096
-          --fp16
-          --verbose
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/models/fcn_resnet101_374x1238.onnx
+  OUTPUT ${ENGINE_PATH}
+  COMMAND ${TRTEXEC_EXECUTABLE} --onnx=${ONNX_PATH} --saveEngine=${ENGINE_PATH}
+          --memPoolSize=workspace:4096 --fp16 --verbose
+  DEPENDS ${ONNX_PATH}
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMENT "Generating TensorRT engine..."
+  COMMENT "Generating TensorRT engine: ${ENGINE_FILE}..."
   VERBATIM
 )
 
 # Create custom targets that can be built
-add_custom_target(generate_onnx
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/models/fcn_resnet101_374x1238.onnx
-)
-
 add_custom_target(generate_engine
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/engines/fcn_resnet101_374x1238.engine
+  DEPENDS ${ENGINE_PATH}
 )
 
 # Function to add model generation dependency to a target
@@ -61,14 +55,14 @@ endfunction()
 
 # Install generated models and engines
 # Check if directories exist before installing
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/models)
-  install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/models/
+if(EXISTS ${ONNXS_DIR})
+  install(DIRECTORY ${ONNXS_DIR}/
     DESTINATION share/${PROJECT_NAME}/models
     FILES_MATCHING PATTERN "*.onnx")
 endif()
 
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/engines)
-  install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/engines/
+if(EXISTS ${ENGINES_DIR})
+  install(DIRECTORY ${ENGINES_DIR}/
     DESTINATION share/${PROJECT_NAME}/engines
     FILES_MATCHING PATTERN "*.engine")
 endif()
