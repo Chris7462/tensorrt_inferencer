@@ -139,11 +139,14 @@ void FCNTrtBackend::initialize_memory()
 
   // Set tensor addresses
   if (!context_->setTensorAddress(input_name_.c_str(),
-    static_cast<void *>(buffers_.device_input))) {
+    static_cast<void *>(buffers_.device_input)))
+  {
     throw TensorRTException("Failed to set input tensor address");
   }
+
   if (!context_->setTensorAddress(output_name_.c_str(),
-    static_cast<void *>(buffers_.device_output))) {
+    static_cast<void *>(buffers_.device_output)))
+  {
     throw TensorRTException("Failed to set output tensor address");
   }
 }

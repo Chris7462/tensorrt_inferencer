@@ -47,9 +47,24 @@ def export_fcn_model(output_path, input_height, input_width):
         do_constant_folding=True,
         input_names=['input'],
         output_names=['output'],
-        dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}}
+        dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}},
+        verbose=True
     )
     print(f'ONNX model saved to: {output_path}')
+
+    # Test the exported model
+    print('\nTesting ONNX model...')
+    try:
+        import onnx
+        onnx_model = onnx.load(output_path)
+        onnx.checker.check_model(onnx_model)
+        print('✓ ONNX model validation passed')
+    except ImportError:
+        print('⚠ ONNX package not available - skipping model validation')
+        print('  Install with: pip install onnx')
+    except Exception as e:
+        print(f'✗ ONNX model validation failed: {e}')
+
     return output_path
 
 
@@ -58,7 +73,7 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('--height', type=int, default=374, help='The height of the input image')
     ap.add_argument('--width', type=int, default=1238, help='The width of the input image')
-    ap.add_argument('--output-dir', type=str, required=True,
+    ap.add_argument('--output-dir', type=str, default='onnxs',
                     help='The path to output onnx file')
     args = vars(ap.parse_args())
     # args = {'height': 374, 'width': 1238, 'output_dir': '../models'}
