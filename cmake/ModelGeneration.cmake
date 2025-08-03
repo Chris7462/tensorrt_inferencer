@@ -53,13 +53,13 @@ function(add_model_generation_dependency target_name)
   add_dependencies(${target_name} generate_engine)
 endfunction()
 
-# Install generated models and engines
-# Check if directories exist before installing
-if(EXISTS ${ONNXS_DIR})
-  install(DIRECTORY ${ONNXS_DIR}/
-    DESTINATION share/${PROJECT_NAME}/models
-    FILES_MATCHING PATTERN "*.onnx")
-endif()
+# # Install generated onnxs and engines
+# # Check if directories exist before installing
+# if(EXISTS ${ONNXS_DIR})
+#   install(DIRECTORY ${ONNXS_DIR}/
+#     DESTINATION share/${PROJECT_NAME}/onnxs
+#     FILES_MATCHING PATTERN "*.onnx")
+# endif()
 
 if(EXISTS ${ENGINES_DIR})
   install(DIRECTORY ${ENGINES_DIR}/
